@@ -102,7 +102,7 @@
     "compression": "^1.8.2",
     "concat-stream": "^2.0.0",
     "cookie-parser": "^1.4.7",
-    "dayjs": "^1.11.10",
+    "dayjs": "^1.11.23",
     "dotenv": "^16.5.0",
     "dotenv-cli": "^8.0.0",
     "evp_bytestokey": "^1.0.3",
