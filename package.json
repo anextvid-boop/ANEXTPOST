@@ -115,7 +115,7 @@
     "google-auth-library": "^9.11.0",
     "googleapis": "^137.1.0",
     "image-to-pdf": "^3.0.2",
-    "ioredis": "^5.3.2",
+    "ioredis": "^6.0.0",
     "isomorphic-dompurify": "^3.10.0",
     "json-to-graphql-query": "^2.2.5",
     "jsonwebtoken": "^9.0.2",
