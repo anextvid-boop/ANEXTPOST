@@ -43,6 +43,13 @@ import { InfoTip } from "./info-tip";
 import { policyErrorMessage } from "./policy-notice";
 import { suggestSlots, type SlotSuggestion } from "@/lib/smart-slots-api";
 import { getCommentProviders } from "@/lib/comment-providers";
+import {
+  backendMediaToUrl,
+  fetchMedia,
+  fetchMediaCollections,
+  type BackendMedia,
+  type MediaCollectionSummary,
+} from "@/lib/media-api";
 import { WorkspaceBadge, channelDestinationLabel } from "./workspace-badge";
 
 interface CreatePostModalProps {
@@ -529,6 +536,15 @@ export function CreatePostModal({
   const [media, setMedia] = useState<AttachedMedia[]>(
     initialValue?.media ?? [],
   );
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [libraryItems, setLibraryItems] = useState<BackendMedia[]>([]);
+  const [libraryCollections, setLibraryCollections] = useState<MediaCollectionSummary[]>([]);
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [libraryType, setLibraryType] = useState<"all" | "image" | "video">("all");
+  const [libraryCollectionId, setLibraryCollectionId] = useState("");
+  const [librarySelectedIds, setLibrarySelectedIds] = useState<Set<string>>(() => new Set());
 
   // Optional first comment (posted right after the main post). Only shown when
   // at least one selected channel's provider supports comments.
@@ -1210,13 +1226,76 @@ export function CreatePostModal({
   const removeMedia = (id: string) => {
     setMedia((prev) => {
       const dropped = prev.find((m) => m.id === id);
-      if (dropped) {
+      if (dropped && dropped.url.startsWith("blob:")) {
         try {
           URL.revokeObjectURL(dropped.url);
         } catch {}
       }
       return prev.filter((m) => m.id !== id);
     });
+  };
+
+  useEffect(() => {
+    if (!libraryOpen) return;
+    let cancelled = false;
+    setLibraryLoading(true);
+    setLibraryError(null);
+    Promise.all([
+      fetchMedia(
+        1,
+        librarySearch.trim() || undefined,
+        libraryCollectionId || undefined,
+        36,
+        libraryType === "all" ? undefined : libraryType,
+      ),
+      libraryCollections.length === 0
+        ? fetchMediaCollections()
+        : Promise.resolve({ collections: libraryCollections }),
+    ])
+      .then(([pageRes, colRes]) => {
+        if (cancelled) return;
+        setLibraryItems(pageRes.results ?? []);
+        if (colRes?.collections) setLibraryCollections(colRes.collections);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLibraryError(err instanceof Error ? err.message : "Failed to load media library");
+      })
+      .finally(() => {
+        if (!cancelled) setLibraryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [libraryOpen, librarySearch, libraryCollectionId, libraryType]);
+
+  const toggleLibrarySelect = (id: string) => {
+    setLibrarySelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const attachFromLibrary = () => {
+    const existingBackendIds = new Set(media.map((m) => m.backendId || m.id));
+    const chosen = libraryItems.filter(
+      (item) => librarySelectedIds.has(item.id) && !existingBackendIds.has(item.id),
+    );
+    if (chosen.length > 0) {
+      const nextItems: AttachedMedia[] = chosen.map((item) => ({
+        id: item.id,
+        backendId: item.id,
+        name: item.name || "media",
+        kind: item.type === "video" || /\.(mp4|mov|webm|m4v)$/i.test(item.path) ? "video" : "image",
+        size: item.fileSize ?? 0,
+        url: backendMediaToUrl(item),
+      }));
+      setMedia((prev) => [...prev, ...nextItems]);
+    }
+    setLibrarySelectedIds(new Set());
+    setLibraryOpen(false);
   };
 
   // Carousel order matters on Instagram/LinkedIn/X — swapping images used to
@@ -1894,6 +1973,14 @@ export function CreatePostModal({
                 <VideoIcon />
                 {t("createPost.addVideo")}
               </button>
+              <button
+                type="button"
+                className={styles.toolBtn}
+                onClick={() => setLibraryOpen((v) => !v)}
+              >
+                <ImageIcon />
+                From library
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1902,6 +1989,195 @@ export function CreatePostModal({
                 style={{ display: "none" }}
                 onChange={onFiles}
               />
+              {libraryOpen && (
+                <div
+                  data-testid="media-library-picker"
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 12,
+                    borderRadius: 10,
+                    border: "1px solid var(--line-soft)",
+                    background: "var(--bg)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: 13 }}>Media Library</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <input
+                        type="search"
+                        value={librarySearch}
+                        onChange={(e) => setLibrarySearch(e.target.value)}
+                        placeholder="Search media..."
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: "1px solid var(--line-soft)",
+                          background: "var(--surface)",
+                          color: "var(--fg)",
+                          fontSize: 12,
+                          width: 140,
+                        }}
+                      />
+                      <select
+                        value={libraryType}
+                        onChange={(e) => setLibraryType(e.target.value as "all" | "image" | "video")}
+                        aria-label="Filter media type"
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: "1px solid var(--line-soft)",
+                          background: "var(--surface)",
+                          color: "var(--fg)",
+                          fontSize: 12,
+                        }}
+                      >
+                        <option value="all">All</option>
+                        <option value="image">Images</option>
+                        <option value="video">Videos</option>
+                      </select>
+                      <select
+                        value={libraryCollectionId}
+                        onChange={(e) => setLibraryCollectionId(e.target.value)}
+                        aria-label="Filter collection"
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: "1px solid var(--line-soft)",
+                          background: "var(--surface)",
+                          color: "var(--fg)",
+                          fontSize: 12,
+                          maxWidth: 160,
+                        }}
+                      >
+                        <option value="">All collections</option>
+                        {libraryCollections.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.count})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {libraryError && (
+                    <span style={{ fontSize: 12, color: "var(--danger-bright)" }}>{libraryError}</span>
+                  )}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
+                      gap: 8,
+                      maxHeight: 220,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {libraryLoading ? (
+                      <span style={{ fontSize: 12, color: "var(--muted)", gridColumn: "1 / -1" }}>
+                        Loading media…
+                      </span>
+                    ) : libraryItems.length === 0 ? (
+                      <span style={{ fontSize: 12, color: "var(--muted)", gridColumn: "1 / -1" }}>
+                        No media found in this workspace.
+                      </span>
+                    ) : (
+                      libraryItems.map((item) => {
+                        const selected = librarySelectedIds.has(item.id);
+                        const url = backendMediaToUrl(item);
+                        const isVideo = item.type === "video" || /\.(mp4|mov|webm|m4v)$/i.test(item.path);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => toggleLibrarySelect(item.id)}
+                            title={item.name}
+                            style={{
+                              position: "relative",
+                              padding: 0,
+                              borderRadius: 8,
+                              overflow: "hidden",
+                              border: selected ? "2px solid #3B82F6" : "1px solid var(--line-soft)",
+                              background: "var(--surface)",
+                              aspectRatio: "1 / 1",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {isVideo ? (
+                              <video
+                                src={url}
+                                muted
+                                playsInline
+                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                              />
+                            ) : (
+                              <img
+                                src={url}
+                                alt={item.name}
+                                loading="lazy"
+                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                              />
+                            )}
+                            {selected && (
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  top: 4,
+                                  right: 4,
+                                  width: 18,
+                                  height: 18,
+                                  borderRadius: "50%",
+                                  background: "#3B82F6",
+                                  color: "#fff",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  display: "grid",
+                                  placeItems: "center",
+                                }}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                      {librarySelectedIds.size} selected
+                    </span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        className={styles.toolBtn}
+                        onClick={() => setLibraryOpen(false)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={librarySelectedIds.size === 0}
+                        onClick={attachFromLibrary}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: "#2563EB",
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: librarySelectedIds.size === 0 ? "not-allowed" : "pointer",
+                          opacity: librarySelectedIds.size === 0 ? 0.5 : 1,
+                        }}
+                      >
+                        Attach selected
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <button
                 type="button"
                 className={styles.toolBtn}
