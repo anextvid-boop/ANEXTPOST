@@ -1979,7 +1979,7 @@ export function CreatePostModal({
                 onClick={() => setLibraryOpen((v) => !v)}
               >
                 <ImageIcon />
-                From library
+                Add image/vid from lib
               </button>
               <input
                 ref={fileInputRef}
