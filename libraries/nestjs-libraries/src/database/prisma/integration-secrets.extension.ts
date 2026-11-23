@@ -27,30 +27,57 @@ import { AuthService } from '@postsider/helpers/auth/auth.service';
 const SECRET_FIELDS = ['token', 'refreshToken'] as const;
 const ENCRYPTED_MARKER = 'v2:';
 
-/** Ciphertext we wrote ourselves — anything else is legacy plaintext. */
+/** Ciphertext we wrote ourselves — `v2:` GCM or legacy CBC hex when ENCRYPTION_KEY is unset. */
 function isEncrypted(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith(ENCRYPTED_MARKER);
+}
+
+function isLegacyCbcHex(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length >= 32 &&
+    value.length % 2 === 0 &&
+    /^[0-9a-f]+$/i.test(value)
+  );
 }
 
 /** Encrypt a value unless it is empty or already encrypted. */
 export function encryptField(value: unknown): unknown {
   if (typeof value !== 'string' || value.length === 0) return value;
   if (isEncrypted(value)) return value;
+  if (isLegacyCbcHex(value)) {
+    try {
+      const dec = AuthService.decryptSecret(value);
+      if (dec && /^[\x20-\x7e]+$/.test(dec)) return value;
+    } catch {
+      // Not legacy ciphertext — proceed to encrypt.
+    }
+  }
   return AuthService.encryptSecret(value);
 }
 
 /** Decrypt a value we encrypted; leave legacy plaintext untouched. */
 export function decryptField(value: unknown): unknown {
-  if (!isEncrypted(value)) return value;
-  try {
-    return AuthService.decryptSecret(value);
-  } catch {
-    // A key rotation without a re-encryption pass would land here. Returning
-    // the ciphertext (rather than throwing) keeps the rest of the row usable:
-    // the channel then fails its next API call and surfaces as "reconnect
-    // needed", which is a far better failure mode than a 500 on every read.
-    return value;
+  if (isEncrypted(value)) {
+    try {
+      return AuthService.decryptSecret(value);
+    } catch {
+      // A key rotation without a re-encryption pass would land here. Returning
+      // the ciphertext (rather than throwing) keeps the rest of the row usable:
+      // the channel then fails its next API call and surfaces as "reconnect
+      // needed", which is a far better failure mode than a 500 on every read.
+      return value;
+    }
   }
+  if (isLegacyCbcHex(value)) {
+    try {
+      const dec = AuthService.decryptSecret(value);
+      if (dec && /^[\x20-\x7e]+$/.test(dec)) return dec;
+    } catch {
+      // Not valid CBC ciphertext under JWT_SECRET — treat as legacy plaintext.
+    }
+  }
+  return value;
 }
 
 /**

@@ -278,6 +278,8 @@ export class OrganizationRepository {
       name?: string;
       description?: string | null;
       logo?: string | null;
+      color?: string | null;
+      icon?: string | null;
       defaultTimezone?: string | null;
       referralSource?: string | null;
       brandVoice?: string | null;
@@ -437,7 +439,13 @@ export class OrganizationRepository {
   async createOrgForExistingUser(
     userId: string,
     name: string,
-    allowTrial: boolean
+    allowTrial: boolean,
+    meta?: {
+      projectType?: string | null;
+      brandHandle?: string | null;
+      brandWebsite?: string | null;
+      brandEmail?: string | null;
+    }
   ) {
     const TRIAL_DAYS = 7;
     return this._prisma.$transaction(async (tx) => {
@@ -460,6 +468,10 @@ export class OrganizationRepository {
       return tx.organization.create({
       data: {
         name,
+        ...(meta?.projectType ? { projectType: meta.projectType } : {}),
+        ...(meta?.brandHandle ? { brandHandle: meta.brandHandle } : {}),
+        ...(meta?.brandWebsite ? { brandWebsite: meta.brandWebsite } : {}),
+        ...(meta?.brandEmail ? { brandEmail: meta.brandEmail } : {}),
         apiKey: AuthService.fixedEncryption(makeId(20)),
         allowTrial: grantTrial,
         isTrailing: grantTrial,

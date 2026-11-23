@@ -1,7 +1,7 @@
 import { GuestReviewView } from "@/components/guest-review-view";
 
 export const metadata = {
-  title: "Review post · PostSider",
+  title: "Review post · ANEXTPOST",
 };
 
 // Guest approval link minted by an org admin: /review/<token>. No account.

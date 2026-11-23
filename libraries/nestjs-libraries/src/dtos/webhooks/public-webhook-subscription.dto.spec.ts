@@ -51,4 +51,41 @@ describe('public webhook subscription URL validation', () => {
     expect(isLocalWebhookHost('not a url')).toBe(false);
     expect(isLocalWebhookHost(undefined)).toBe(false);
   });
+
+  it('allows http://127.0.0.1 only when ALLOW_LOCAL_WEBHOOK_TARGETS or WEBHOOK_ALLOWLIST_ORIGINS is enabled', async () => {
+    const prevAllow = process.env.ALLOW_LOCAL_WEBHOOK_TARGETS;
+    const prevOrigins = process.env.WEBHOOK_ALLOWLIST_ORIGINS;
+    try {
+      delete process.env.ALLOW_LOCAL_WEBHOOK_TARGETS;
+      delete process.env.WEBHOOK_ALLOWLIST_ORIGINS;
+      expect(
+        await errorsFor(
+          CreatePublicWebhookSubscriptionDto,
+          'http://127.0.0.1:4000/webhooks/anextpost'
+        )
+      ).not.toHaveLength(0);
+
+      process.env.ALLOW_LOCAL_WEBHOOK_TARGETS = 'true';
+      expect(
+        await errorsFor(
+          CreatePublicWebhookSubscriptionDto,
+          'http://127.0.0.1:4000/webhooks/anextpost'
+        )
+      ).toHaveLength(0);
+
+      delete process.env.ALLOW_LOCAL_WEBHOOK_TARGETS;
+      process.env.WEBHOOK_ALLOWLIST_ORIGINS = 'http://127.0.0.1:4000';
+      expect(
+        await errorsFor(
+          CreatePublicWebhookSubscriptionDto,
+          'http://127.0.0.1:4000/webhooks/anextpost'
+        )
+      ).toHaveLength(0);
+    } finally {
+      if (prevAllow === undefined) delete process.env.ALLOW_LOCAL_WEBHOOK_TARGETS;
+      else process.env.ALLOW_LOCAL_WEBHOOK_TARGETS = prevAllow;
+      if (prevOrigins === undefined) delete process.env.WEBHOOK_ALLOWLIST_ORIGINS;
+      else process.env.WEBHOOK_ALLOWLIST_ORIGINS = prevOrigins;
+    }
+  });
 });

@@ -12,10 +12,14 @@
 
 {
 	# Email used by Let's Encrypt for expiry notices.
-	email admin@example.com
+	email ejahronimo@gmail.com
 }
 
-app.example.com {
+www.anextpost.com {
+	redir https://anextpost.com{uri} permanent
+}
+
+anextpost.com {
 	encode zstd gzip
 
 	# Must match the 512 MB multer and nginx upload limits.
@@ -31,7 +35,7 @@ app.example.com {
 		-Server
 	}
 
-	# Public media (MINIO_PUBLIC_URL=https://app.example.com/storage).
+	# Public media (MINIO_PUBLIC_URL=https://anextpost.com/storage).
 	# Strip /storage and serve from the MinIO bucket "postsider-media".
 	handle_path /storage/* {
 		rewrite * /postsider-media{uri}
@@ -50,7 +54,7 @@ app.example.com {
 # docker-compose.production.yaml); flush_interval -1 disables buffering so a
 # client that negotiates a text/event-stream response receives frames as they
 # are produced.
-mcp.example.com {
+mcp.anextpost.com {
 	reverse_proxy 127.0.0.1:8081 {
 		flush_interval -1
 	}

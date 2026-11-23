@@ -4,7 +4,7 @@ import { ApproverLinkView } from "@/components/approver-link-view";
 // Signed single use link from an approval email: /approve/<token>. The token
 // must never leak through Referer and the page must never be indexed.
 export const metadata: Metadata = {
-  title: "Approval \u00b7 PostSider",
+  title: "Approval \u00b7 ANEXTPOST",
   referrer: "no-referrer",
   robots: { index: false, follow: false, nocache: true },
 };

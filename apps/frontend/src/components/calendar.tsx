@@ -1,12 +1,19 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './calendar.module.css';
 import { ChannelsPanel } from './channels-panel';
 import { PlatformIcon } from './platform-icon';
+import { DestinationFilterChips } from './destination-filter-chips';
 import { PostMediaThumb } from './post-media-thumb';
 import { ChannelDetailModal } from './channel-detail-modal';
 import { AddChannelModal } from './add-channel-modal';
+import { ProviderCredentialsModal } from './provider-credentials-modal';
+import {
+  formatUnconfiguredProviderMessage,
+  hasMissingOAuthClientId,
+} from './brand-connections-menu';
 import { CustomFieldsModal } from './custom-fields-modal';
 import { TelegramConnectModal } from './telegram-connect-modal';
 import { FarcasterConnectModal } from './farcaster-connect-modal';
@@ -212,6 +219,7 @@ export function Calendar({ year, month }: CalendarProps) {
   const [cursor, setCursor] = useState<Date>(new Date(year, month, 1));
   const [selected, setSelected] = useState<Date | null>(null);
   const [openDay, setOpenDay] = useState<Date | null>(null);
+  const [trayExpanded, setTrayExpanded] = useState(false);
   const [composer, setComposer] = useState<{
     date: string;
     time: string;
@@ -239,24 +247,33 @@ export function Calendar({ year, month }: CalendarProps) {
     null
   );
 
-  // Toolbar: search + status filter. Lightweight, non-destructive — the grid
-  // stays mounted and just re-filters what's shown.
+  // Toolbar: search + status filter + channels popover. Lightweight,
+  // non-destructive — the grid stays mounted and just re-filters what's shown.
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PostStatus>('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [channelsOpen, setChannelsOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
+  const channelsRef = useRef<HTMLDivElement | null>(null);
 
-  // Close the status-filter dropdown on outside click / Escape, matching the
-  // other dropdowns in the shell (notifications bell, org switcher).
+  // Close the status-filter and channels popovers on outside click / Escape.
   useEffect(() => {
-    if (!filtersOpen) return;
+    if (!filtersOpen && !channelsOpen) return;
     const onDown = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (filtersOpen && filterRef.current && !filterRef.current.contains(target)) {
         setFiltersOpen(false);
+      }
+      if (channelsOpen && channelsRef.current && !channelsRef.current.contains(target)) {
+        setChannelsOpen(false);
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFiltersOpen(false);
+      if (e.key === 'Escape') {
+        setFiltersOpen(false);
+        setChannelsOpen(false);
+      }
     };
     document.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
@@ -264,7 +281,7 @@ export function Calendar({ year, month }: CalendarProps) {
       document.removeEventListener('mousedown', onDown);
       window.removeEventListener('keydown', onKey);
     };
-  }, [filtersOpen]);
+  }, [filtersOpen, channelsOpen]);
 
   const { user, loading: authLoading } = useAuth();
   const isMember = user?.role === 'USER';
@@ -299,10 +316,55 @@ export function Calendar({ year, month }: CalendarProps) {
   }, [channelsLoading, eventsLoading]);
   const initialLoading = !bootstrapped && (channelsLoading || eventsLoading);
 
-  // All channels are always visible in the calendar — the dot in the panel is a
-  // colour identifier only, not a toggle.
-  const enabled = useMemo(() => new Set(channels.map((c) => c.id)), [channels]);
+  const [platformFilter, setPlatformFilter] = useState<string>('all');
+  const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [selectedDestIds, setSelectedDestIds] = useState<string[]>([]);
+  const schedulePlatforms = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of channels) {
+      if (c.platform) set.add(c.platform);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [channels]);
+  const scheduleFilteredChannels = useMemo(
+    () =>
+      platformFilter === 'all'
+        ? channels
+        : channels.filter((c) => c.platform === platformFilter),
+    [channels, platformFilter],
+  );
+  const enabled = useMemo(
+    () =>
+      new Set(
+        channels
+          .filter(
+            (c) =>
+              (platformFilter === 'all' || c.platform === platformFilter) &&
+              (channelFilter === 'all' || c.id === channelFilter) &&
+              (selectedDestIds.length === 0 || selectedDestIds.includes(c.id)),
+          )
+          .map((c) => c.id),
+      ),
+    [channels, platformFilter, channelFilter, selectedDestIds],
+  );
+  const isCompactDesktop = useMediaQuery('(max-width: 1120px)');
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  useEffect(() => {
+    if (isCompactDesktop) {
+      setPanelCollapsed(true);
+    }
+  }, [isCompactDesktop]);
+
+  const openNewPostComposer = () => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setComposer({
+      date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+        now.getDate()
+      )}`,
+      time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    });
+  };
   const [openChannelId, setOpenChannelId] = useState<string | null>(null);
   const [retryingChannel, setRetryingChannel] = useState(false);
   const [addChannelOpen, setAddChannelOpen] = useState(false);
@@ -354,6 +416,11 @@ export function Calendar({ year, month }: CalendarProps) {
   // a channel. Shown as a dismissible banner.
   const [channelError, setChannelError] = useState<string | null>(null);
   const [channelErrorIsPlanLimit, setChannelErrorIsPlanLimit] = useState(false);
+  const [unconfiguredProvider, setUnconfiguredProvider] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
+  const [credsModalOpen, setCredsModalOpen] = useState(false);
   // Pending destructive action awaiting confirmation.
   const [confirm, setConfirm] = useState<
     | { kind: 'channel'; id: string; name: string }
@@ -515,6 +582,13 @@ export function Calendar({ year, month }: CalendarProps) {
 
       // OAuth provider — configured and ready: redirect immediately.
       if (hasOAuth) {
+        if (hasMissingOAuthClientId(res.oauthUrl)) {
+          const label = platformLabel || platformId;
+          setChannelError(formatUnconfiguredProviderMessage(platformId, label));
+          setUnconfiguredProvider({ id: platformId, label });
+          return;
+        }
+        setUnconfiguredProvider(null);
         window.location.href = res.oauthUrl!;
         return;
       }
@@ -550,12 +624,10 @@ export function Calendar({ year, month }: CalendarProps) {
 
       // OAuth provider but NOT configured on server (no env vars set).
       // The backend returned no oauthUrl and no customFields.
-      // Show a user-friendly message.
-      setCustomFieldsError(
-        `${
-          platformLabel || platformId
-        } is not available yet. Please contact support.`
-      );
+      // Surface the actionable setup message + Configure API Keys option.
+      const label = platformLabel || platformId;
+      setChannelError(formatUnconfiguredProviderMessage(platformId, label));
+      setUnconfiguredProvider({ id: platformId, label });
     } catch (err) {
       console.error('[add-channel]', err);
       const status = (err as { status?: number })?.status;
@@ -730,6 +802,9 @@ export function Calendar({ year, month }: CalendarProps) {
     const isoDate = (() => {
       if (post.date && post.time) {
         const dt = new Date(`${post.date}T${post.time}:00`);
+        if (Number.isNaN(dt.getTime())) {
+          throw new Error('Invalid date or time.');
+        }
         return dt.toISOString();
       }
       // Drafts may have no date — fall back to "now" so the backend has
@@ -980,31 +1055,6 @@ export function Calendar({ year, month }: CalendarProps) {
 
   return (
     <div className={styles.shell}>
-      <ChannelsPanel
-        channels={channels}
-        enabled={enabled}
-        collapsed={panelCollapsed}
-        hideActions={isMember}
-        onToggleChannel={toggleChannel}
-        onToggleCollapse={() => setPanelCollapsed((v) => !v)}
-        onOpenChannel={isMember ? undefined : (id) => setOpenChannelId(id)}
-        onAddChannel={isMember ? undefined : () => setAddChannelOpen(true)}
-        onCreatePost={
-          isMember
-            ? undefined
-            : () => {
-                const now = new Date();
-                const pad = (n: number) => String(n).padStart(2, '0');
-                setComposer({
-                  date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-                    now.getDate()
-                  )}`,
-                  time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-                });
-              }
-        }
-      />
-
       <div className={styles.root}>
         {channelError && (
           <div
@@ -1021,7 +1071,28 @@ export function Calendar({ year, month }: CalendarProps) {
               marginBottom: 16,
             }}
           >
-            <span style={{ flex: 1 }}>{channelError}</span>
+            <span style={{ flex: 1, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{channelError}</span>
+            {unconfiguredProvider && (
+              <button
+                type="button"
+                data-testid="calendar-configure-keys-btn"
+                onClick={() => setCredsModalOpen(true)}
+                style={{
+                  height: 28,
+                  padding: '0 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid currentColor',
+                  background: 'transparent',
+                  color: 'inherit',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Configure API Keys
+              </button>
+            )}
             {channelErrorIsPlanLimit && (
               <a
                 href="/billing"
@@ -1037,7 +1108,10 @@ export function Calendar({ year, month }: CalendarProps) {
             )}
             <button
               type="button"
-              onClick={() => setChannelError(null)}
+              onClick={() => {
+                setChannelError(null);
+                setUnconfiguredProvider(null);
+              }}
               aria-label={t('common.dismiss')}
               style={{
                 border: 'none',
@@ -1164,26 +1238,6 @@ export function Calendar({ year, month }: CalendarProps) {
             )}
           </div>
         )}
-        {!isMember && (
-          <SetupChecklist
-            channels={channels}
-            raw={rawChannels}
-            loading={channelsLoading}
-            refreshSignal={postCreatedTick}
-            onConnect={() => setAddChannelOpen(true)}
-            onCompose={() => {
-              const now = new Date();
-              const pad = (n: number) => String(n).padStart(2, '0');
-              setComposer({
-                date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-                  now.getDate()
-                )}`,
-                time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-              });
-            }}
-          />
-        )}
-
         <div className={styles.header}>
           <div className={styles.title}>
             <span className={styles.titleMain}>{headerTitle}</span>
@@ -1191,6 +1245,134 @@ export function Calendar({ year, month }: CalendarProps) {
           </div>
 
           <div className={styles.headerRight}>
+            <div className={styles.segmented} role="tablist" aria-label="View">
+              {(Object.keys(VIEW_LABELS) as ViewMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === m}
+                  className={
+                    styles.segment +
+                    (view === m ? ' ' + styles.segmentActive : '')
+                  }
+                  onClick={() => changeView(m)}
+                >
+                  {t(VIEW_LABELS[m] as any)}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.controls}>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={goPrev}
+                aria-label={t('calendar.previous')}
+              >
+                <ChevronLeft />
+              </button>
+              <button
+                type="button"
+                className={styles.todayBtn}
+                onClick={goToday}
+              >
+                {t('calendar.today')}
+              </button>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={goNext}
+                aria-label={t('calendar.next')}
+              >
+                <ChevronRight />
+              </button>
+            </div>
+
+            <div className={styles.filterWrap} ref={channelsRef}>
+              {channels.length > 0 && (
+                <div style={{ marginRight: 8 }}>
+                  <DestinationFilterChips
+                    channels={channels.map((c) => ({
+                      id: c.id,
+                      name: c.name,
+                      platform: c.platform,
+                      identifier: c.identifier ?? c.platform.toLowerCase(),
+                    }))}
+                    selectedChannelIds={selectedDestIds}
+                    onChange={setSelectedDestIds}
+                    align="right"
+                    testIdPrefix="schedule-dest"
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                className={
+                  styles.filterBtn +
+                  (channelsOpen ||
+                  (channels.length > 0 && enabled.size < channels.length)
+                    ? ' ' + styles.filterBtnActive
+                    : '')
+                }
+                onClick={() => {
+                  setFiltersOpen(false);
+                  setChannelsOpen((v) => !v);
+                }}
+                aria-expanded={channelsOpen}
+                aria-haspopup="dialog"
+              >
+                <span>{t('channels.title')}</span>
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden
+                  className={styles.filterIcon}
+                  style={{
+                    transform: channelsOpen ? 'rotate(180deg)' : undefined,
+                    transition: 'transform 150ms var(--ease)',
+                  }}
+                >
+                  <path
+                    d="M4 6.5 8 10.5 12 6.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {channelsOpen && (
+                <div className={styles.channelsPopover} role="dialog" aria-label={t('channels.title')}>
+                  <ChannelsPanel
+                    embedded
+                    channels={channels}
+                    enabled={enabled}
+                    collapsed={false}
+                    hideActions={isMember}
+                    onToggleChannel={toggleChannel}
+                    onToggleCollapse={() => setChannelsOpen(false)}
+                    onOpenChannel={
+                      isMember
+                        ? undefined
+                        : (id) => {
+                            setChannelsOpen(false);
+                            setOpenChannelId(id);
+                          }
+                    }
+                    onAddChannel={
+                      isMember
+                        ? undefined
+                        : () => {
+                            setChannelsOpen(false);
+                            setAddChannelOpen(true);
+                          }
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
             <div className={styles.searchWrap}>
               <svg
                 viewBox="0 0 16 16"
@@ -1230,7 +1412,10 @@ export function Calendar({ year, month }: CalendarProps) {
                   styles.filterBtn +
                   (statusFilter !== 'all' ? ' ' + styles.filterBtnActive : '')
                 }
-                onClick={() => setFiltersOpen((v) => !v)}
+                onClick={() => {
+                  setChannelsOpen(false);
+                  setFiltersOpen((v) => !v);
+                }}
                 aria-expanded={filtersOpen}
               >
                 {t('calendar.filters')}
@@ -1239,6 +1424,10 @@ export function Calendar({ year, month }: CalendarProps) {
                   fill="none"
                   aria-hidden
                   className={styles.filterIcon}
+                  style={{
+                    transform: filtersOpen ? 'rotate(180deg)' : undefined,
+                    transition: 'transform 150ms var(--ease)',
+                  }}
                 >
                   <path
                     d="M4 6.5 8 10.5 12 6.5"
@@ -1287,51 +1476,51 @@ export function Calendar({ year, month }: CalendarProps) {
 
             <span className={styles.tzLabel}>{timezoneLabel}</span>
 
-            <div className={styles.segmented} role="tablist" aria-label="View">
-              {(Object.keys(VIEW_LABELS) as ViewMode[]).map((m) => (
+            {!isMember && (
+              <>
                 <button
-                  key={m}
                   type="button"
-                  role="tab"
-                  aria-selected={view === m}
-                  className={
-                    styles.segment +
-                    (view === m ? ' ' + styles.segmentActive : '')
-                  }
-                  onClick={() => changeView(m)}
+                  className={styles.importPostsBtn}
+                  onClick={() => router.push('/posts/csv-import')}
                 >
-                  {t(VIEW_LABELS[m] as any)}
+                  Import Posts
                 </button>
-              ))}
-            </div>
-
-            <div className={styles.controls}>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                onClick={goPrev}
-                aria-label={t('calendar.previous')}
-              >
-                <ChevronLeft />
-              </button>
-              <button
-                type="button"
-                className={styles.todayBtn}
-                onClick={goToday}
-              >
-                {t('calendar.today')}
-              </button>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                onClick={goNext}
-                aria-label={t('calendar.next')}
-              >
-                <ChevronRight />
-              </button>
-            </div>
+                <button
+                  type="button"
+                  className={styles.createPostBtn}
+                  onClick={openNewPostComposer}
+                >
+                  + {t('channels.createPost')}
+                </button>
+              </>
+            )}
           </div>
         </div>
+
+        {(channels.length > 0 || !isMember) && (
+          <div className={styles.statusStrip}>
+            {channels.length > 0 && (
+              <SummaryBar
+                metrics={summaryMetrics}
+                statusFilter={statusFilter}
+                onFilterStatus={(next) =>
+                  setStatusFilter((cur) => (cur === next ? 'all' : next))
+                }
+              />
+            )}
+            {!isMember && (
+              <SetupChecklist
+                inlineStrip
+                channels={channels}
+                raw={rawChannels}
+                loading={channelsLoading}
+                refreshSignal={postCreatedTick}
+                onConnect={() => setAddChannelOpen(true)}
+                onCompose={openNewPostComposer}
+              />
+            )}
+          </div>
+        )}
 
         {initialLoading && !loadError ? (
           <div className={styles.loadingState} role="status">
@@ -1364,6 +1553,7 @@ export function Calendar({ year, month }: CalendarProps) {
                 onSelect={(d) => {
                   setSelected(d);
                   setOpenDay(d);
+                  setTrayExpanded(true);
                 }}
                 eventsByDay={eventsByDay}
                 channelsById={channelsById}
@@ -1410,10 +1600,21 @@ export function Calendar({ year, month }: CalendarProps) {
                 }}
               />
             )}
+            <DayPopup
+              trayMode
+              date={openDay ?? selected ?? today}
+              events={eventsByDay.get(iso(openDay ?? selected ?? today)) ?? []}
+              channelsById={channelsById}
+              expanded={trayExpanded}
+              onToggleExpanded={() => setTrayExpanded((v) => !v)}
+              onClose={() => setTrayExpanded(false)}
+              onCreate={(d, time) => {
+                setComposer({ date: iso(d), time });
+              }}
+              onEditEvent={isMember ? undefined : (ev) => void openEventForEdit(ev)}
+            />
           </>
         )}
-
-        {channels.length > 0 && <SummaryBar metrics={summaryMetrics} />}
       </div>
 
       {openChannel && (
@@ -1439,6 +1640,18 @@ export function Calendar({ year, month }: CalendarProps) {
           onClose={() => setAddChannelOpen(false)}
           onPick={(id, label) => {
             setAddChannelOpen(false);
+            void addChannelForPlatform(id, label);
+          }}
+        />
+      )}
+
+      {credsModalOpen && unconfiguredProvider && (
+        <ProviderCredentialsModal
+          providerId={unconfiguredProvider.id}
+          label={unconfiguredProvider.label}
+          onClose={() => setCredsModalOpen(false)}
+          onSavedAndConnect={(id, label) => {
+            setCredsModalOpen(false);
             void addChannelForPlatform(id, label);
           }}
         />
@@ -1499,19 +1712,6 @@ export function Calendar({ year, month }: CalendarProps) {
             });
             setDiscordChoice(null);
           }}
-        />
-      )}
-
-      {openDay && (
-        <DayPopup
-          date={openDay}
-          events={eventsByDay.get(iso(openDay)) ?? []}
-          channelsById={channelsById}
-          onClose={() => setOpenDay(null)}
-          onCreate={(d, time) => {
-            setComposer({ date: iso(d), time });
-          }}
-          onEditEvent={isMember ? undefined : (ev) => void openEventForEdit(ev)}
         />
       )}
 
@@ -1826,6 +2026,8 @@ function MonthView({
 
 function SummaryBar({
   metrics,
+  statusFilter,
+  onFilterStatus,
 }: {
   metrics: {
     scheduled: number;
@@ -1833,13 +2035,21 @@ function SummaryBar({
     awaiting: number;
     drafts: number;
   };
+  statusFilter: 'all' | PostStatus;
+  onFilterStatus: (next: PostStatus) => void;
 }) {
   const t = useT();
-  const items = [
+  const items: Array<{
+    label: string;
+    value: number;
+    accent: boolean;
+    filterStatus?: PostStatus;
+  }> = [
     {
       label: t('calendar.summaryScheduled'),
       value: metrics.scheduled,
       accent: false,
+      filterStatus: 'scheduled',
     },
     {
       label: t('calendar.summaryChannels'),
@@ -1850,96 +2060,120 @@ function SummaryBar({
       label: t('calendar.summaryAwaiting'),
       value: metrics.awaiting,
       accent: true,
+      filterStatus: 'pendingApproval',
     },
     {
       label: t('calendar.summaryDrafts'),
       value: metrics.drafts,
       accent: false,
+      filterStatus: 'draft',
     },
   ];
   return (
     <div className={styles.summaryBar}>
-      {items.map((it, i) => (
-        <div
-          key={it.label}
-          className={
-            styles.summaryItem + (i > 0 ? ' ' + styles.summaryItemBorder : '')
-          }
-        >
-          <span className={styles.summaryIcon} aria-hidden>
-            {it.label === t('calendar.summaryScheduled') ? (
-              <svg viewBox="0 0 16 16" fill="none" width="16" height="16">
-                <rect
-                  x="2.5"
-                  y="3"
-                  width="11"
-                  height="10"
-                  rx="2"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M2.5 6h11M5 1.5v3M11 1.5v3"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-            ) : it.label === t('calendar.summaryChannels') ? (
-              <svg viewBox="0 0 16 16" fill="none" width="16" height="16">
-                <circle
-                  cx="5.5"
-                  cy="5.5"
-                  r="3"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                />
-                <circle
-                  cx="10.5"
-                  cy="5.5"
-                  r="3"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M2.5 12c.8-1.6 2-2.5 3-2.5s2.2.9 3 2.5M7.5 12c.8-1.6 2-2.5 3-2.5s2.2.9 3 2.5"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-            ) : it.label === t('calendar.summaryAwaiting') ? (
-              <svg viewBox="0 0 16 16" fill="none" width="16" height="16">
-                <path
-                  d="M3.5 9.5l2.5 2.5 6-6"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 16 16" fill="none" width="16" height="16">
-                <path
-                  d="M3.5 4.5h9M3.5 8h9M3.5 11.5h5"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-            )}
-          </span>
-          <span
-            className={
-              styles.summaryValue +
-              (it.accent ? ' ' + styles.summaryValueAccent : '')
-            }
+      {items.map((it, i) => {
+        const isActive =
+          it.filterStatus !== undefined && statusFilter === it.filterStatus;
+        const className = [
+          styles.summaryItem,
+          i > 0 ? styles.summaryItemBorder : '',
+          it.filterStatus ? styles.summaryItemBtn : '',
+          isActive ? styles.summaryItemActive : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+        const inner = (
+          <>
+            <span className={styles.summaryIcon} aria-hidden>
+              {it.label === t('calendar.summaryScheduled') ? (
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                  <rect
+                    x="2.5"
+                    y="3"
+                    width="11"
+                    height="10"
+                    rx="2"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                  <path
+                    d="M2.5 6h11M5 1.5v3M11 1.5v3"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : it.label === t('calendar.summaryChannels') ? (
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                  <circle
+                    cx="5.5"
+                    cy="5.5"
+                    r="3"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                  <circle
+                    cx="10.5"
+                    cy="5.5"
+                    r="3"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                  <path
+                    d="M2.5 12c.8-1.6 2-2.5 3-2.5s2.2.9 3 2.5M7.5 12c.8-1.6 2-2.5 3-2.5s2.2.9 3 2.5"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : it.label === t('calendar.summaryAwaiting') ? (
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                  <path
+                    d="M3.5 9.5l2.5 2.5 6-6"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                  <path
+                    d="M3.5 4.5h9M3.5 8h9M3.5 11.5h5"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            </span>
+            <span
+              className={
+                styles.summaryValue +
+                (it.accent ? ' ' + styles.summaryValueAccent : '')
+              }
+            >
+              {it.value}
+            </span>
+            <span className={styles.summaryLabel}>{it.label}</span>
+          </>
+        );
+        return it.filterStatus ? (
+          <button
+            key={it.label}
+            type="button"
+            className={className}
+            aria-pressed={isActive}
+            onClick={() => onFilterStatus(it.filterStatus!)}
           >
-            {it.value}
-          </span>
-          <span className={styles.summaryLabel}>{it.label}</span>
-        </div>
-      ))}
+            {inner}
+          </button>
+        ) : (
+          <div key={it.label} className={className}>
+            {inner}
+          </div>
+        );
+      })}
     </div>
   );
 }

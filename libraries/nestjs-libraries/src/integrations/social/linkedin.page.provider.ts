@@ -27,18 +27,30 @@ export class LinkedinPageProvider
   override refreshWait = true;
   override maxConcurrentJob = 2; // LinkedIn Page has professional posting limits
   override scopes = [
-    'r_basicprofile',
-    'w_member_social',
+    'openid',
+    'profile',
+    'email',
     'rw_organization_admin',
     'w_organization_social',
     'r_organization_social',
   ];
+
+  private getLinkedInPageCredentials() {
+    return {
+      clientId:
+        process.env.LINKEDIN_PAGE_CLIENT_ID || process.env.LINKEDIN_CLIENT_ID!,
+      clientSecret:
+        process.env.LINKEDIN_PAGE_CLIENT_SECRET ||
+        process.env.LINKEDIN_CLIENT_SECRET!,
+    };
+  }
 
   override editor = 'normal' as const;
 
   override async refreshToken(
     refresh_token: string
   ): Promise<AuthTokenDetails> {
+    const { clientId, clientSecret } = this.getLinkedInPageCredentials();
     const response = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: {
@@ -47,8 +59,8 @@ export class LinkedinPageProvider
       body: new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token,
-        client_id: process.env.LINKEDIN_CLIENT_ID!,
-        client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+        client_id: clientId,
+        client_secret: clientSecret,
       }),
     });
     const body = await response.json();
@@ -58,37 +70,16 @@ export class LinkedinPageProvider
       response.status
     );
     const { expires_in, refresh_token: refreshToken } = body;
-
-    const {
-      localizedFirstName,
-      localizedLastName,
-      id,
-      vanityName,
-      profilePicture,
-    } = await (
-      await fetch(
-        'https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,vanityName,profilePicture(displayImage~:playableStreams))',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      )
-    ).json();
-
-    const name = `${localizedFirstName} ${localizedLastName}`.trim();
-    const picture =
-      profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]
-        ?.identifier || '';
+    const profile = await this.fetchProfile(accessToken);
 
     return {
-      id,
+      id: profile.id,
       accessToken,
       refreshToken,
       expiresIn: expires_in,
-      name,
-      picture,
-      username: vanityName,
+      name: profile.name,
+      picture: profile.picture,
+      username: profile.username,
     };
   }
 
@@ -125,8 +116,9 @@ export class LinkedinPageProvider
   override async generateAuthUrl() {
     const state = makeId(6);
     const codeVerifier = makeId(30);
+    const { clientId } = this.getLinkedInPageCredentials();
     const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&prompt=none&client_id=${
-      process.env.LINKEDIN_CLIENT_ID
+      clientId
     }&redirect_uri=${encodeURIComponent(
       `${process.env.FRONTEND_URL}/integrations/social/linkedin-page`
     )}&state=${state}&scope=${encodeURIComponent(this.scopes.join(' '))}`;
@@ -138,28 +130,36 @@ export class LinkedinPageProvider
   }
 
   async companies(accessToken: string) {
-    const { elements, ...all } = await (
-      await fetch(
-        'https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organizationalTarget~(localizedName,vanityName,logoV2(original~:playableStreams))))',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'X-Restli-Protocol-Version': '2.0.0',
-            'LinkedIn-Version': '202601',
-          },
-        }
-      )
-    ).json();
+    const res = await fetch(
+      'https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organizationalTarget~(localizedName,vanityName,logoV2(original~:playableStreams))))',
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'X-Restli-Protocol-Version': '2.0.0',
+          'LinkedIn-Version': '202601',
+        },
+      }
+    );
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(
+        body?.message || `LinkedIn companies lookup failed (${res.status})`
+      );
+    }
 
-    return (elements || []).map((e: any) => ({
-      id: e.organizationalTarget.split(':').pop(),
-      page: e.organizationalTarget.split(':').pop(),
-      username: e['organizationalTarget~'].vanityName,
-      name: e['organizationalTarget~'].localizedName,
-      picture:
-        e['organizationalTarget~'].logoV2?.['original~']?.elements?.[0]
-          ?.identifiers?.[0]?.identifier,
-    }));
+    return (body.elements || []).map((e: any) => {
+      const orgId = String(e?.organizationalTarget || '').split(':').pop() || '';
+      const target = e?.['organizationalTarget~'] || {};
+      return {
+        id: orgId,
+        page: orgId,
+        username: target.vanityName || orgId,
+        name: target.localizedName || `LinkedIn Page ${orgId}`,
+        picture:
+          target.logoV2?.['original~']?.elements?.[0]?.identifiers?.[0]
+            ?.identifier || '',
+      };
+    });
   }
 
   async reConnect(
@@ -182,24 +182,29 @@ export class LinkedinPageProvider
 
   async fetchPageInformation(accessToken: string, params: { page: string }) {
     const pageId = params.page;
-    const data = await (
-      await fetch(
-        `https://api.linkedin.com/v2/organizations/${pageId}?projection=(id,localizedName,vanityName,logoV2(original~:playableStreams))`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      )
-    ).json();
+    const res = await fetch(
+      `https://api.linkedin.com/v2/organizations/${pageId}?projection=(id,localizedName,vanityName,logoV2(original~:playableStreams))`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const data = await res.json();
+    if (!res.ok || !data?.id) {
+      throw new Error(
+        data?.message || `Could not load LinkedIn organization ${pageId}`
+      );
+    }
 
     return {
       id: data.id,
-      name: data.localizedName,
+      name: data.localizedName || `LinkedIn Page ${data.id}`,
       access_token: accessToken,
       picture:
-        data?.logoV2?.['original~']?.elements?.[0]?.identifiers?.[0].identifier,
-      username: data.vanityName,
+        data?.logoV2?.['original~']?.elements?.[0]?.identifiers?.[0]
+          ?.identifier || '',
+      username: data.vanityName || String(data.id),
     };
   }
 
@@ -208,6 +213,7 @@ export class LinkedinPageProvider
     codeVerifier: string;
     refresh?: string;
   }) {
+    const { clientId, clientSecret } = this.getLinkedInPageCredentials();
     const body = new URLSearchParams();
     body.append('grant_type', 'authorization_code');
     body.append('code', params.code);
@@ -215,8 +221,8 @@ export class LinkedinPageProvider
       'redirect_uri',
       `${process.env.FRONTEND_URL}/integrations/social/linkedin-page`
     );
-    body.append('client_id', process.env.LINKEDIN_CLIENT_ID!);
-    body.append('client_secret', process.env.LINKEDIN_CLIENT_SECRET!);
+    body.append('client_id', clientId);
+    body.append('client_secret', clientSecret);
 
     const {
       access_token: accessToken,
@@ -236,40 +242,20 @@ export class LinkedinPageProvider
     // In SaaS mode, verify the minimum required scopes for organization posting.
     this.checkScopes(['w_organization_social', 'rw_organization_admin'], scope);
 
-    const {
-      localizedFirstName,
-      localizedLastName,
-      id,
-      vanityName,
-      profilePicture,
-    } = await (
-      await fetch(
-        'https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,vanityName,profilePicture(displayImage~:playableStreams))',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      )
-    ).json();
-
-    const name = `${localizedFirstName} ${localizedLastName}`.trim();
-    const picture =
-      profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]
-        ?.identifier || '';
+    const profile = await this.fetchProfile(accessToken);
 
     return {
       // Use a distinct temporary id so the page integration does NOT collide
       // with the user's personal LinkedIn integration (which uses the bare
       // person id). saveProviderPage() later replaces this with the real
       // organization id once the user picks a page.
-      id: `linkedin-page-${id}`,
+      id: `linkedin-page-${profile.id}`,
       accessToken,
       refreshToken,
       expiresIn,
-      name,
-      picture,
-      username: vanityName,
+      name: profile.name,
+      picture: profile.picture,
+      username: profile.username,
     };
   }
 

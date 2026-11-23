@@ -112,13 +112,7 @@ export function LoginForm() {
       }
     >
       {!PRIVATE_BETA && (
-        <>
-          <GoogleButton label={t("auth.googleSignIn")} />
-
-          <div className={styles.divider}>
-            <span>{t("common.or")}</span>
-          </div>
-        </>
+        <GoogleButton label={t("auth.googleSignIn")} dividerLabel={t("common.or")} />
       )}
 
       <form className={styles.form} onSubmit={onSubmit}>

@@ -67,16 +67,17 @@
   .subnav {
     position: static;
     flex-direction: row;
-    overflow-x: auto;
+    overflow-x: visible;
     padding: 0;
-    gap: 4px;
+    gap: 6px;
   }
   .subnavTitle {
     display: none;
   }
   .subnavList {
     flex-direction: row;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .subnavLink {
     white-space: nowrap;

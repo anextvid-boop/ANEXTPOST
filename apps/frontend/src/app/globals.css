@@ -25,26 +25,44 @@
  * rule here needs prefers-color-scheme.
  */
 
+@font-face {
+  font-family: "ANEXTLemonMilkBold";
+  src:
+    local("LEMON MILK Bold"),
+    local("Lemon Milk Bold"),
+    local("LEMONMILK-Bold");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root,
 [data-theme="light"] {
   color-scheme: light;
 
-  --page: #ffffff;
-  --bg: #ffffff;
-  --fg: #000000;
-  --line: #000000;
-  --tint: 0 0 0;
+  --font-brand: "ANEXTLemonMilkBold", var(--font-sans), sans-serif;
+
+  --page: #F7F9FC;
+  --bg: #FFFFFF;
+  --fg: #101827;
+  --line: #D5DFEB;
+  --tint: 16 24 39;
   --shadow: 0 0 0;
   --shadow-boost: 1;
   --scrim: rgb(0 0 0 / 0.5);
   /* Foreground of anything painted in --fg (inverted pills, active rows).
    * --on-fg-rgb is the same ink as a tint channel, for the translucent
    * secondary text that sits on those inverted surfaces. */
-  --on-fg: #ffffff;
+  --on-fg: #FFFFFF;
   --on-fg-rgb: 255 255 255;
 
-  /* The one non-neutral accent in the UI (primary analytics card). */
-  --accent: #8b5cf6;
+  /* ANEXTVID primary brand blue & selection tokens. */
+  --accent: #0A66C2;
+  --accent-hover: #004182;
+  --accent-fg: #FFFFFF;
+  --selection-bg: rgb(10 102 194 / 0.12);
+  --selection-fg: #0A66C2;
+  --selection-border: rgb(10 102 194 / 0.35);
 
   /* Hover elevation. The design lifts cards with a soft black shadow, which
    * simply does not exist on a dark ground — and several of those rules also
@@ -66,10 +84,10 @@
   --info: #2563eb;
   --info-soft: rgb(37 99 235 / 0.08);
 
-  --line-soft: rgb(var(--tint) / 0.08);
-  --muted: rgb(var(--tint) / 0.55);
-  --hover: rgb(var(--tint) / 0.04);
-  --hover-strong: rgb(var(--tint) / 0.08);
+  --line-soft: rgb(var(--tint) / 0.11);
+  --muted: rgb(var(--tint) / 0.58);
+  --hover: rgb(10 102 194 / 0.05);
+  --hover-strong: rgb(10 102 194 / 0.1);
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -77,26 +95,45 @@
   --radius-xl: 28px;
   --radius-pill: 999px;
 
+  /* Reusable ANEXTVID control tokens (Blue Light defaults). */
+  --ctrl-height: 34px;
+  --ctrl-height-icon: 32px;
+  --ctrl-height-segment: 28px;
+  --ctrl-pad-x: 14px;
+  --ctrl-pad-x-compact: 10px;
+  --ctrl-radius: 8px;
+  --ctrl-radius-segment: 6px;
+  --ctrl-icon-size: 15px;
+  --ctrl-surface: var(--bg);
+  --ctrl-border: 1px solid var(--line-soft);
+  --ctrl-bevel: inset 0 1px 0 rgb(255 255 255 / 0.75);
+  --ctrl-bevel-primary: inset 0 1px 0 rgb(255 255 255 / 0.22);
+  --ctrl-focus-ring: 2px solid var(--selection-fg);
+
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --page: #08080a;
-  --bg: #141416;
-  --fg: #f2f2f3;
-  /* Not pure --fg: a hairline at full white reads as a glowing edge. */
-  --line: rgb(255 255 255 / 0.82);
-  --tint: 255 255 255;
+  --page: #0B1220;
+  --bg: #111E2F;
+  --fg: #F9FAFB;
+  --line: #30445D;
+  --tint: 249 250 251;
   --shadow: 0 0 0;
   --shadow-boost: 2.2;
   --scrim: rgb(0 0 0 / 0.66);
-  --on-fg: #08080a;
-  --on-fg-rgb: 8 8 10;
+  --on-fg: #0B1220;
+  --on-fg-rgb: 11 18 32;
 
-  --accent: #a78bfa;
-  --lift-ring: rgb(255 255 255 / 0.16);
+  --accent: #0A66C2;
+  --accent-hover: #1D7AE0;
+  --accent-fg: #FFFFFF;
+  --selection-bg: rgb(96 165 250 / 0.18);
+  --selection-fg: #60A5FA;
+  --selection-border: rgb(96 165 250 / 0.42);
+  --lift-ring: rgb(96 165 250 / 0.24);
 
   /* Lifted for legibility on a dark ground — the light-mode inks fail
    * contrast at these sizes. */
@@ -111,6 +148,10 @@
   --success-soft: rgb(74 222 128 / 0.14);
   --info: #7aa2ff;
   --info-soft: rgb(122 162 255 / 0.14);
+
+  /* Reusable ANEXTVID control tokens (Blue Dark overrides). */
+  --ctrl-bevel: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --ctrl-bevel-primary: inset 0 1px 0 rgb(255 255 255 / 0.18);
 }
 
 *,
@@ -208,6 +249,11 @@ a {
   text-decoration: none;
 }
 
+a:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
+}
+
 /*
  * Default styling for plain <button> elements that aren't styled by a CSS
  * module. Components are responsible for their own button look — anything
@@ -261,7 +307,7 @@ button[class] {
 /* Brand keyboard-focus ring for classed buttons too (modules rarely define
  * their own); :focus-visible keeps mouse clicks ring-free. */
 button[class]:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--selection-fg);
   outline-offset: 2px;
 }
 
@@ -284,8 +330,13 @@ ul {
 
 .brand {
   font-family: var(--font-brand);
-  font-weight: 400;
-  letter-spacing: 0;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+h1 {
+  font-family: var(--font-brand);
+  letter-spacing: 0.01em;
 }
 
 /*
@@ -401,5 +452,160 @@ ul {
     content: "";
     position: absolute;
     inset: -8px;
+  }
+}
+
+/* ── Reusable ANEXTVID Control Classes ────────────────────────────────────────
+ * Product-agnostic control primitives backed by --ctrl-* tokens. */
+
+.anext-focus:focus-visible,
+.anext-btn-primary:focus-visible,
+.anext-btn-secondary:focus-visible,
+.anext-btn-icon:focus-visible,
+.anext-select:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
+}
+
+.anext-btn-primary {
+  height: var(--ctrl-height);
+  padding: 0 var(--ctrl-pad-x);
+  border-radius: var(--ctrl-radius);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--ctrl-bevel-primary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
+    transform 120ms var(--ease);
+}
+
+.anext-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.anext-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.anext-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.anext-btn-secondary {
+  height: var(--ctrl-height);
+  padding: 0 var(--ctrl-pad-x);
+  border-radius: var(--ctrl-radius);
+  border: var(--ctrl-border);
+  background: var(--ctrl-surface);
+  color: var(--fg);
+  box-shadow: var(--ctrl-bevel);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
+    transform 120ms var(--ease);
+}
+
+.anext-btn-secondary:hover:not(:disabled) {
+  background: var(--hover-strong);
+  border-color: var(--line);
+}
+
+.anext-btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.anext-btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.anext-btn-icon {
+  width: var(--ctrl-height) !important;
+  height: var(--ctrl-height) !important;
+  min-height: var(--ctrl-height) !important;
+  padding: 0 !important;
+  border-radius: var(--ctrl-radius) !important;
+  border: var(--ctrl-border) !important;
+  background: var(--ctrl-surface) !important;
+  color: var(--fg) !important;
+  box-shadow: var(--ctrl-bevel);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
+    transform 120ms var(--ease);
+}
+
+.anext-btn-icon:hover:not(:disabled) {
+  background: var(--hover-strong) !important;
+  border-color: var(--line) !important;
+}
+
+.anext-btn-icon:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.anext-btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.anext-select {
+  height: var(--ctrl-height);
+  border-radius: var(--ctrl-radius) !important;
+  border: var(--ctrl-border) !important;
+  background-color: var(--ctrl-surface) !important;
+  color: var(--fg) !important;
+  box-shadow: var(--ctrl-bevel);
+  padding: 0 28px 0 12px !important;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease);
+}
+
+.anext-select:hover:not(:disabled) {
+  background-color: var(--hover-strong) !important;
+  border-color: var(--line) !important;
+}
+
+@keyframes anextPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

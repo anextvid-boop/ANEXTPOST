@@ -22,6 +22,26 @@ export class AuthService {
     private _emailService: EmailService,
     private _providerManager: AuthProviderManager
   ) {}
+  isEmailAllowed(email?: string | null): boolean {
+    const raw = process.env.ALLOWED_EMAILS;
+    if (!raw || !raw.trim()) {
+      return true;
+    }
+    if (!email || typeof email !== 'string') {
+      return false;
+    }
+    const allowed = new Set(
+      raw
+        .split(',')
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+    );
+    if (allowed.size === 0) {
+      return true;
+    }
+    return allowed.has(email.trim().toLowerCase());
+  }
+
   async canRegister(provider: string, hasValidInvite = false) {
     if (
       process.env.DISABLE_REGISTRATION !== 'true' ||
@@ -57,6 +77,9 @@ export class AuthService {
       !!addToOrg && typeof addToOrg !== 'boolean' && !!addToOrg.orgId;
 
     if (provider === Provider.LOCAL) {
+      if (!this.isEmailAllowed(body.email)) {
+        throw new Error('Access restricted to authorized emails');
+      }
       if (process.env.DISALLOW_PLUS && body.email.includes('+')) {
         throw new Error('Email with plus sign is not allowed');
       }
@@ -179,10 +202,20 @@ export class AuthService {
       throw new Error('Invalid provider token');
     }
 
-    const user = await this._userService.getUserByProvider(
+    if (!this.isEmailAllowed(providerUser.email)) {
+      throw new Error('Access restricted to authorized emails');
+    }
+
+    let user = await this._userService.getUserByProvider(
       providerUser.id,
       provider
     );
+    if (!user && provider === Provider.GOOGLE && providerUser.email) {
+      const byEmail = await this._userService.getUserByEmail(providerUser.email);
+      if (byEmail?.activated) {
+        user = byEmail;
+      }
+    }
     if (user) {
       return { user, registeredOrgId: undefined };
     }
@@ -334,10 +367,16 @@ export class AuthService {
     if (!user) {
       throw new Error('Invalid user');
     }
-    const checkExists = await this._userService.getUserByProvider(
+    let checkExists = await this._userService.getUserByProvider(
       user.id,
       provider as Provider
     );
+    if (!checkExists && provider === Provider.GOOGLE && user.email) {
+      const byEmail = await this._userService.getUserByEmail(user.email);
+      if (byEmail?.activated) {
+        checkExists = byEmail;
+      }
+    }
     if (checkExists) {
       return { user: checkExists, jwt: issueSession ? await this.jwt(checkExists) : undefined };
     }

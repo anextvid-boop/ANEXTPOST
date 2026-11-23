@@ -63,6 +63,11 @@ async function start() {
       index: false,
       dotfiles: 'deny',
       fallthrough: false,
+      maxAge: '365d',
+      immutable: true,
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      },
     }));
   }
 

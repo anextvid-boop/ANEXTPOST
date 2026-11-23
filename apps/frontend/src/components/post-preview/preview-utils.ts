@@ -25,7 +25,9 @@ export function mediaAspectRatio(
     case "video":
       return "9 / 16";
     case "instagram":
-      return postType === "story" ? "9 / 16" : "1 / 1";
+      return postType === "story" || postType === "reel" || postType === "reels"
+        ? "9 / 16"
+        : "1 / 1";
     case "linkedin":
     case "facebook":
     case "article":

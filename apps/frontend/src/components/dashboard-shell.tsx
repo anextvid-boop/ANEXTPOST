@@ -8,6 +8,7 @@ import { useT, type MessageKey } from "@/lib/i18n";
 import { LanguageSwitcher } from "./language-switcher";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationsBell } from "./notifications-bell";
+import { BrandConnectionsMenu } from "./brand-connections-menu";
 import { PublishingPauseBanner, usePublishingState } from "./publishing-pause";
 import styles from "./dashboard-shell.module.css";
 
@@ -22,6 +23,105 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  {
+    href: "/media",
+    labelKey: "nav.media",
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+        <rect
+          x="2.5"
+          y="3.5"
+          width="11"
+          height="9"
+          rx="1.5"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <circle cx="6" cy="6.5" r="1" fill="currentColor" />
+        <path
+          d="M3 11.5 6.5 8.5l3 3 1.7-1.5 1.8 1.7"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    href: "/copywriting",
+    labelKey: "nav.copywriting",
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path
+          d="M3.5 3.5h9M3.5 7h6.5M3.5 10.5h4.5"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
+        <path
+          d="M11.25 8.75 13.5 11l-3.25 3.25H8v-2.25l3.25-3.25Z"
+          stroke="currentColor"
+          strokeWidth="1.35"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    href: "/builder",
+    labelKey: "nav.builder",
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+        <rect
+          x="2.5"
+          y="2.5"
+          width="11"
+          height="3.25"
+          rx="1"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <rect
+          x="2.5"
+          y="7"
+          width="11"
+          height="3.25"
+          rx="1"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <path
+          d="M2.5 12.75h7"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    href: "/visualizer",
+    labelKey: "nav.visualizer",
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+        <rect
+          x="2.25"
+          y="3.25"
+          width="11.5"
+          height="9.5"
+          rx="1.5"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <path
+          d="M5 7h2.5M8.5 7H11M5 9.75h4"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
   {
     href: "/calendar",
     labelKey: "nav.calendar",
@@ -51,50 +151,6 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    href: "/analytics",
-    labelKey: "nav.analytics",
-    icon: (
-      <svg viewBox="0 0 16 16" fill="none" aria-hidden>
-        <path
-          d="M3 12V8M7 12V4M11 12V9"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-        />
-        <path
-          d="M2.5 13.25h11"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "/media",
-    labelKey: "nav.media",
-    icon: (
-      <svg viewBox="0 0 16 16" fill="none" aria-hidden>
-        <rect
-          x="2.5"
-          y="3.5"
-          width="11"
-          height="9"
-          rx="1.5"
-          stroke="currentColor"
-          strokeWidth="1.4"
-        />
-        <circle cx="6" cy="6.5" r="1" fill="currentColor" />
-        <path
-          d="M3 11.5 6.5 8.5l3 3 1.7-1.5 1.8 1.7"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
     href: "/posts",
     labelKey: "nav.posts",
     icon: (
@@ -110,6 +166,26 @@ const NAV_ITEMS: NavItem[] = [
         />
         <path
           d="M5 6h6M5 8.5h6M5 11h4"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    href: "/analytics",
+    labelKey: "nav.analytics",
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path
+          d="M3 12V8M7 12V4M11 12V9"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+        <path
+          d="M2.5 13.25h11"
           stroke="currentColor"
           strokeWidth="1.4"
           strokeLinecap="round"
@@ -205,12 +281,38 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const STORAGE_KEY = "postsider:sidebar-collapsed";
+const PRIMARY_NAV_HREFS = ["/media", "/copywriting", "/builder", "/visualizer", "/posts", "/calendar"] as const;
 
 const ROLE_LEVEL: Record<string, number> = {
   USER: 0,
   ADMIN: 1,
   SUPERADMIN: 2,
 };
+
+function ChevronDown({ open = false }: { open?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      width="12"
+      height="12"
+      style={{
+        transform: open ? "rotate(180deg)" : undefined,
+        transition: "transform 150ms var(--ease)",
+        flexShrink: 0,
+      }}
+    >
+      <path
+        d="M4 6.25 8 10.25 12 6.25"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function ChevronCollapse({ collapsed }: { collapsed: boolean }) {
   return (
@@ -234,8 +336,33 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   // Mobile off-canvas drawer (opened from the hamburger in the topbar).
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Desktop topbar dropdowns.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const drawerCloseRef = useRef<HTMLButtonElement | null>(null);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const accountRef = useRef<HTMLDivElement | null>(null);
+  const accountButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.agencyModeOnly && !user?.agencyMode) return false;
+    if (!item.minRole) return true;
+    return myLevel >= (ROLE_LEVEL[item.minRole] ?? 0);
+  });
+
+  const primaryNavItems = PRIMARY_NAV_HREFS.map((href) =>
+    visibleNavItems.find((item) => item.href === href),
+  ).filter((item): item is NavItem => Boolean(item));
+
+  const moreNavItems = visibleNavItems.filter(
+    (item) => !PRIMARY_NAV_HREFS.includes(item.href as (typeof PRIMARY_NAV_HREFS)[number]),
+  );
+
+  const isRouteActive = (href: string) =>
+    pathname === href || pathname?.startsWith(href + "/");
+  const isMoreActive = moreNavItems.some((item) => isRouteActive(item.href));
 
   // Emergency Pause (kill switch) — live state for the dashboard-wide banner.
   const {
@@ -251,10 +378,44 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
-  // Close the drawer on navigation.
+  // Close the drawer and desktop dropdowns on navigation.
   useEffect(() => {
     setMobileNavOpen(false);
+    setMoreOpen(false);
+    setAccountOpen(false);
   }, [pathname]);
+
+  // Close More / Account dropdowns on outside click or Escape.
+  useEffect(() => {
+    if (!moreOpen && !accountOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        const activeEl = document.activeElement;
+        if (moreOpen && moreRef.current?.contains(activeEl)) {
+          moreButtonRef.current?.focus();
+        } else if (accountOpen && accountRef.current?.contains(activeEl)) {
+          accountButtonRef.current?.focus();
+        }
+        setMoreOpen(false);
+        setAccountOpen(false);
+      }
+    };
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (moreOpen && moreRef.current && !moreRef.current.contains(target)) {
+        setMoreOpen(false);
+      }
+      if (accountOpen && accountRef.current && !accountRef.current.contains(target)) {
+        setAccountOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onClick);
+    };
+  }, [moreOpen, accountOpen]);
 
   // Escape closes the drawer.
   useEffect(() => {
@@ -289,12 +450,163 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   // never open, so this matches the stored collapsed state exactly.
   const isCollapsed = collapsed && !mobileNavOpen;
 
+  const accountDisplayName = user?.name || user?.email?.split("@")[0] || "AN";
+  const accountInitials = accountDisplayName.slice(0, 2).toUpperCase();
+
   return (
     <div
       className={
-        styles.shell + (collapsed ? " " + styles.shellCollapsed : "")
+        styles.shell + (pathname === "/calendar" ? " " + styles.shellCalendar : "")
       }
     >
+      {/* Desktop (>= 901px) single 56px top navigation bar */}
+      <header className={styles.desktopTopbar}>
+        <div className={styles.desktopNavLeft}>
+          <BrandConnectionsMenu />
+          <span className={styles.brandDivider} aria-hidden />
+          <nav aria-label="Primary" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {primaryNavItems.map((item) => {
+              const active = isRouteActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={
+                    styles.topNavLink + (active ? " " + styles.topNavLinkActive : "")
+                  }
+                >
+                  <span
+                    aria-hidden
+                    className={styles.topNavIcon}
+                  >
+                    {item.icon}
+                  </span>
+                  <span>{t(item.labelKey)}</span>
+                </Link>
+              );
+            })}
+
+            {moreNavItems.length > 0 && (
+              <div ref={moreRef} className={styles.menuWrap}>
+                <button
+                  ref={moreButtonRef}
+                  type="button"
+                  aria-expanded={moreOpen}
+                  aria-haspopup="menu"
+                  onClick={() => {
+                    setAccountOpen(false);
+                    setMoreOpen((v) => !v);
+                  }}
+                  className={
+                    styles.topNavLink +
+                    (isMoreActive ? " " + styles.topNavMoreActive : "")
+                  }
+                >
+                  <span>More</span>
+                  <ChevronDown open={moreOpen} />
+                </button>
+                {moreOpen && (
+                  <div className={styles.menuDropdown} role="menu">
+                    {moreNavItems.map((item) => {
+                      const active = isRouteActive(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          role="menuitem"
+                          aria-current={active ? "page" : undefined}
+                          onClick={() => setMoreOpen(false)}
+                          className={
+                            styles.menuItem + (active ? " " + styles.menuItemActive : "")
+                          }
+                        >
+                          <span
+                            aria-hidden
+                            style={{
+                              width: 15,
+                              height: 15,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {item.icon}
+                          </span>
+                          <span>{t(item.labelKey)}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </nav>
+        </div>
+
+        <div className={styles.desktopNavRight}>
+          <OrgSwitcher placement="bottom" />
+          <NotificationsBell compact className="anext-btn-icon" />
+          <LanguageSwitcher compact selectClassName="anext-select" />
+          <ThemeToggle compact className="anext-btn-icon" />
+          {user && (
+            <div ref={accountRef} className={styles.menuWrap}>
+              <button
+                ref={accountButtonRef}
+                type="button"
+                aria-label={accountDisplayName}
+                aria-expanded={accountOpen}
+                aria-haspopup="menu"
+                onClick={() => {
+                  setMoreOpen(false);
+                  setAccountOpen((v) => !v);
+                }}
+                className={"anext-btn-secondary " + styles.accountButton}
+              >
+                <span>{accountInitials}</span>
+                <ChevronDown open={accountOpen} />
+              </button>
+              {accountOpen && (
+                <div
+                  className={styles.menuDropdown + " " + styles.menuDropdownRight}
+                  role="menu"
+                >
+                  <div
+                    style={{
+                      padding: "8px 10px 10px",
+                      borderBottom: "1px solid var(--line-soft)",
+                      marginBottom: 4,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>
+                      {accountDisplayName}
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                      {user.email}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      logout();
+                    }}
+                    className={styles.menuItem}
+                  >
+                    <span>{t("nav.signOut")}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+
       <header className={styles.topbar}>
         <button
           type="button"
@@ -314,29 +626,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </svg>
         </button>
         <span className={styles.topbarBrand}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand/postsider-logo.png"
-            alt=""
-            width={28}
-            height={28}
-            aria-hidden
-            // Invert our own mark in dark mode only — never the org's logo.
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: "var(--radius-sm)",
-              objectFit: "cover",
-              flexShrink: 0,
-              display: "block",
-            }}
-          />
-          <span
-            className="brand"
-            style={{ fontSize: "19px", lineHeight: 1, display: "inline-block" }}
-          >
-            PostSider
-          </span>
+          <BrandConnectionsMenu />
         </span>
         {/* The sidebar copy lives in a drawer on mobile, so the bell needs its
             own always-visible spot here. */}
@@ -385,59 +675,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             padding: isCollapsed ? 0 : "0 6px",
           }}
         >
-          {!isCollapsed ? (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 10,
-                minWidth: 0,
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/brand/postsider-logo.png"
-                alt=""
-                width={32}
-                height={32}
-                aria-hidden
-                    style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 10,
-                  objectFit: "cover",
-                  flexShrink: 0,
-                  display: "block",
-                }}
-              />
-              <span
-                className="brand"
-                style={{
-                  fontSize: "22px",
-                  lineHeight: 1,
-                  display: "inline-block",
-                }}
-              >
-                PostSider
-              </span>
-            </span>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src="/brand/postsider-logo.png"
-              alt=""
-              width={32}
-              height={32}
-              aria-hidden
-                style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          )}
+          <BrandConnectionsMenu
+            label={isCollapsed ? "AP" : "ANEXTPOST"}
+            fontSize={isCollapsed ? "15px" : "20px"}
+          />
           <button
             type="button"
             className="touch-target"
@@ -518,6 +759,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    aria-current={isActive ? "page" : undefined}
                     title={isCollapsed ? t(item.labelKey) : undefined}
                     className={
                       styles.navLink +
@@ -605,14 +847,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main
-        className={pathname === "/calendar" ? styles.mainCalendar : undefined}
-        style={{
-          borderRadius: "var(--radius-xl)",
-          border: "1px solid var(--line-soft)",
-          padding: "32px",
-          minHeight: "calc(100vh - 32px)",
-          minWidth: 0,
-        }}
+        className={
+          styles.main + (pathname === "/calendar" ? " " + styles.mainCalendar : "")
+        }
       >
         <PublishingPauseBanner
           state={publishingState}
@@ -682,13 +919,17 @@ function OrgAvatar({
   );
 }
 
-/** Org switcher — shown in the sidebar footer when the user has 2+ orgs. */
-function OrgSwitcher() {
+/** Org switcher — shown in the desktop topbar and mobile drawer footer. */
+function OrgSwitcher({ placement = "top" }: { placement?: "top" | "bottom" }) {
   const { user, switchOrg, createOrg } = useAuth();
   const t = useT();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
+  const [newProjectType, setNewProjectType] = useState("youtube");
+  const [newBrandHandle, setNewBrandHandle] = useState("");
+  const [newBrandWebsite, setNewBrandWebsite] = useState("");
+  const [newBrandEmail, setNewBrandEmail] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -722,7 +963,13 @@ function OrgSwitcher() {
     setCreateBusy(true);
     setCreateError(null);
     try {
-      await createOrg(name);
+      await createOrg({
+        name,
+        projectType: newProjectType,
+        brandHandle: newBrandHandle.trim() || undefined,
+        brandWebsite: newBrandWebsite.trim() || undefined,
+        brandEmail: newBrandEmail.trim() || undefined,
+      });
       // createOrg reloads the page on success (same as switchOrg) — no need
       // to reset local state, but guard anyway in case that ever changes.
     } catch (e) {
@@ -737,25 +984,27 @@ function OrgSwitcher() {
     <div ref={ref} style={{ position: "relative" }}>
       <button
         type="button"
+        className={placement === "bottom" ? "anext-btn-secondary" : undefined}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="listbox"
         style={{
-          width: "100%",
+          width: placement === "bottom" ? "auto" : "100%",
+          maxWidth: placement === "bottom" ? 140 : undefined,
           display: "flex",
           alignItems: "center",
-          gap: 10,
-          padding: "8px 10px",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--line-soft)",
-          background: "var(--bg)",
+          gap: placement === "bottom" ? 8 : 10,
+          padding: placement === "bottom" ? "0 10px" : "8px 10px",
+          borderRadius: placement === "bottom" ? undefined : "var(--radius-md)",
+          border: placement === "bottom" ? undefined : "1px solid var(--line-soft)",
+          background: placement === "bottom" ? undefined : "var(--bg)",
           color: "var(--fg)",
           cursor: "pointer",
           fontSize: 13,
           textAlign: "left",
         }}
       >
-        <OrgAvatar name={currentOrg?.name || "?"} logo={currentOrg?.logo} size={28} invert />
+        <OrgAvatar name={currentOrg?.name || "?"} logo={currentOrg?.logo} size={placement === "bottom" ? 20 : 28} invert />
         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {currentOrg?.name || "?"}
         </span>
@@ -767,17 +1016,16 @@ function OrgSwitcher() {
           role="listbox"
           style={{
             position: "absolute",
-            bottom: "100%",
-            left: 0,
-            right: 0,
-            margin: "0 0 4px 0",
+            ...(placement === "bottom"
+              ? { top: "calc(100% + 6px)", right: 0, minWidth: 250 }
+              : { bottom: "100%", left: 0, right: 0, margin: "0 0 4px 0" }),
             padding: 4,
             listStyle: "none",
             background: "var(--bg)",
             border: "1px solid var(--line-soft)",
             borderRadius: "var(--radius-md)",
             boxShadow: "0 8px 24px rgb(var(--shadow) / calc(0.12 * var(--shadow-boost)))",
-            zIndex: 50,
+            zIndex: 70,
             display: "flex",
             flexDirection: "column",
             gap: 2,
@@ -789,24 +1037,15 @@ function OrgSwitcher() {
               <li key={org.id} role="option" aria-selected={isCurrent}>
                 <button
                   type="button"
+                  className={
+                    styles.menuItem + (isCurrent ? " " + styles.menuItemActive : "")
+                  }
                   onClick={() => {
                     if (!isCurrent) switchOrg(org.id);
                     setOpen(false);
                   }}
                   style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "7px 10px",
-                    borderRadius: 8,
-                    border: "none",
-                    background: isCurrent ? "rgb(var(--tint) / 0.04)" : "transparent",
-                    color: "var(--fg)",
                     cursor: isCurrent ? "default" : "pointer",
-                    fontSize: 13,
-                    textAlign: "left",
-                    opacity: isCurrent ? 0.7 : 1,
                   }}
                 >
                   <OrgAvatar name={org.name} logo={org.logo} size={24} invert={isCurrent} />
@@ -836,6 +1075,54 @@ function OrgSwitcher() {
                     padding: "6px 8px", borderRadius: 6,
                     border: "1px solid var(--line-soft)",
                     background: "var(--bg)", color: "var(--fg)", fontSize: 13,
+                  }}
+                />
+                <select
+                  value={newProjectType}
+                  onChange={(e) => setNewProjectType(e.target.value)}
+                  aria-label="Project type"
+                  style={{
+                    padding: "6px 8px", borderRadius: 6,
+                    border: "1px solid var(--line-soft)",
+                    background: "var(--bg)", color: "var(--fg)", fontSize: 12.5,
+                  }}
+                >
+                  <option value="youtube">YouTube Channel</option>
+                  <option value="app">App / SaaS</option>
+                  <option value="creator">Creator / Brand</option>
+                  <option value="blank">Blank / Custom</option>
+                </select>
+                <input
+                  type="text"
+                  value={newBrandHandle}
+                  onChange={(e) => setNewBrandHandle(e.target.value)}
+                  placeholder="Handle (optional, e.g. @mychannel)"
+                  style={{
+                    padding: "6px 8px", borderRadius: 6,
+                    border: "1px solid var(--line-soft)",
+                    background: "var(--bg)", color: "var(--fg)", fontSize: 12.5,
+                  }}
+                />
+                <input
+                  type="url"
+                  value={newBrandWebsite}
+                  onChange={(e) => setNewBrandWebsite(e.target.value)}
+                  placeholder="Website (optional, https://...)"
+                  style={{
+                    padding: "6px 8px", borderRadius: 6,
+                    border: "1px solid var(--line-soft)",
+                    background: "var(--bg)", color: "var(--fg)", fontSize: 12.5,
+                  }}
+                />
+                <input
+                  type="email"
+                  value={newBrandEmail}
+                  onChange={(e) => setNewBrandEmail(e.target.value)}
+                  placeholder="Contact email (optional)"
+                  style={{
+                    padding: "6px 8px", borderRadius: 6,
+                    border: "1px solid var(--line-soft)",
+                    background: "var(--bg)", color: "var(--fg)", fontSize: 12.5,
                   }}
                 />
                 <span style={{ fontSize: 11, opacity: 0.6, lineHeight: 1.4 }}>
@@ -874,13 +1161,8 @@ function OrgSwitcher() {
             ) : (
               <button
                 type="button"
+                className={styles.menuItem}
                 onClick={() => setCreating(true)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "7px 10px", borderRadius: 8, border: "none",
-                  background: "transparent", color: "var(--fg)", cursor: "pointer",
-                  fontSize: 13, textAlign: "left",
-                }}
               >
                 <span style={{
                   width: 24, height: 24, borderRadius: 6,

@@ -10,6 +10,7 @@ import {
 } from "react";
 import styles from "./create-post-modal.module.css";
 import { ChannelAvatar } from "./channel-avatar";
+import { groupChannelsByPlatform } from "./destination-filter-chips";
 import { PostPreviewPanel } from "./post-preview/post-preview-panel";
 import { PostCheckerPanel } from "./post-checker-panel";
 import { SnippetsPanel } from "./snippets-panel";
@@ -42,6 +43,7 @@ import { InfoTip } from "./info-tip";
 import { policyErrorMessage } from "./policy-notice";
 import { suggestSlots, type SlotSuggestion } from "@/lib/smart-slots-api";
 import { getCommentProviders } from "@/lib/comment-providers";
+import { WorkspaceBadge, channelDestinationLabel } from "./workspace-badge";
 
 interface CreatePostModalProps {
   channels: Channel[];
@@ -66,6 +68,10 @@ interface CreatePostModalProps {
    * the primary action updates the existing post instead of creating one.
    */
   initialValue?: InitialPostValue;
+  /** Optional initial body text when creating a new post (e.g. from Post Builder). */
+  initialBody?: string;
+  /** Optional initial channel IDs to pre-select when creating a new post. */
+  initialChannelIds?: string[];
   /**
    * Approval status of the post being edited. When "rejected", the modal shows
    * a banner and the "Send to Approval" button for re-submission.
@@ -492,6 +498,8 @@ export function CreatePostModal({
   onSendToApproval,
   onDelete,
   initialValue,
+  initialBody,
+  initialChannelIds,
   approvalStatus,
   rejectionNote,
 }: CreatePostModalProps) {
@@ -499,7 +507,7 @@ export function CreatePostModal({
   const isEdit = !!initialValue;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set<string>(initialValue?.channelIds ?? []),
+    () => new Set<string>(initialValue?.channelIds ?? initialChannelIds ?? []),
   );
 
   const [postDate, setPostDate] = useState(initialValue?.date ?? date);
@@ -513,7 +521,7 @@ export function CreatePostModal({
   const [activeTarget, setActiveTarget] = useState<string>(GLOBAL_KEY);
 
   const [bodies, setBodies] = useState<Record<string, string>>({
-    [GLOBAL_KEY]: initialValue?.body ?? "",
+    [GLOBAL_KEY]: initialValue?.body ?? initialBody ?? "",
   });
   const [threadParts, setThreadParts] = useState<string[]>(
     initialValue?.threadParts ?? [],
@@ -590,7 +598,8 @@ export function CreatePostModal({
   // Smart Slots: best-time suggestions for the first selected channel.
   const [slotSuggestions, setSlotSuggestions] = useState<SlotSuggestion[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
-  const [slotsError, setSlotsError] = useState(false);
+  const [slotsEmpty, setSlotsEmpty] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
 
   // Focus the main editor once when the modal opens.
   useEffect(() => {
@@ -869,23 +878,43 @@ export function CreatePostModal({
     });
   }, [selectedChannels, commentProviders]);
 
+  // Smart Slots: clear stale suggestions when the primary channel changes.
+  const primaryChannelId = selectedChannels[0]?.id ?? "";
+  useEffect(() => {
+    setSlotSuggestions([]);
+    setSlotsEmpty(false);
+    setSlotsError(null);
+  }, [primaryChannelId]);
+
   // Smart Slots: fetch best-time suggestions for the first selected channel.
   const fetchSlots = useCallback(async () => {
     const channel = selectedChannels[0];
     const platform = channel ? channelIdentifier(channel) : undefined;
-    if (!channel || !platform) return;
+    if (!channel || !platform) {
+      setSlotSuggestions([]);
+      setSlotsEmpty(true);
+      setSlotsError(null);
+      return;
+    }
     setSlotsLoading(true);
-    setSlotsError(false);
+    setSlotsEmpty(false);
+    setSlotsError(null);
     try {
       const slots = await suggestSlots(channel.id, platform, 3);
-      setSlotSuggestions(Array.isArray(slots) ? slots : []);
-    } catch {
+      const list = Array.isArray(slots) ? slots : [];
+      setSlotSuggestions(list);
+      setSlotsEmpty(list.length === 0);
+    } catch (err) {
+      console.error("[smart-slots]", err);
       setSlotSuggestions([]);
-      setSlotsError(true);
+      setSlotsEmpty(false);
+      setSlotsError(
+        err instanceof Error && err.message ? err.message : t("smartSlots.none"),
+      );
     } finally {
       setSlotsLoading(false);
     }
-  }, [selectedChannels]);
+  }, [selectedChannels, t]);
 
   // Apply a suggestion: convert its ISO datetime to the local YYYY-MM-DD +
   // HH:mm strings the pickers expect, reusing the existing date/time setters.
@@ -1512,9 +1541,14 @@ export function CreatePostModal({
   // Add to queue: drop the post into this channel's next free posting slot,
   // then schedule it. Single-channel only for v1 (per-channel slots differ).
   const addToQueue = useCallback(async () => {
-    if (selectedChannels.length !== 1) return;
-    setAddingToQueue(true);
+    if (selectedChannels.length !== 1 || !onSchedule) return;
     setSubmitError(null);
+    setShowValidation(true);
+    if (validationSummary.length > 0) {
+      setSubmitError(t("createPost.attentionNeeded"));
+      return;
+    }
+    setAddingToQueue(true);
     try {
       const { date } = await findNextSlot(selectedChannels[0].id);
       // find-slot returns a UTC wall-clock string without a zone (same as the
@@ -1532,10 +1566,11 @@ export function CreatePostModal({
       // Defer the submit so it runs after postDate/postTime have updated.
       setQueuePending(true);
     } catch (err) {
+      console.error("[add-to-queue]", err);
       setSubmitError(humanizeSubmitError(err, t));
       setAddingToQueue(false);
     }
-  }, [selectedChannels, t]);
+  }, [selectedChannels, onSchedule, validationSummary.length, t]);
 
   useEffect(() => {
     if (!queuePending) return;
@@ -1574,9 +1609,12 @@ export function CreatePostModal({
         onClick={(e) => e.stopPropagation()}
       >
         <header className={styles.head}>
-          <span className={styles.title}>
-            {isEdit ? t("createPost.editTitle") : t("createPost.title")}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span className={styles.title}>
+              {isEdit ? t("createPost.editTitle") : t("createPost.title")}
+            </span>
+            <WorkspaceBadge compact />
+          </div>
           <button
             type="button"
             className={styles.closeBtn}
@@ -1680,6 +1718,19 @@ export function CreatePostModal({
               </div>
             )}
 
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, color: "var(--fg)" }}>Posting to:</span>
+              {selectedIds.size === 0 ? (
+                <span>Select a profile or Page below</span>
+              ) : (
+                <span>
+                  {channels
+                    .filter((c) => selectedIds.has(c.id))
+                    .map((c) => channelDestinationLabel(c))
+                    .join(", ")}
+                </span>
+              )}
+            </div>
             <ChannelStrip
               channels={channels}
               selectedIds={selectedIds}
@@ -2049,6 +2100,11 @@ export function CreatePostModal({
               </>
             )}
             {!slotsLoading && slotsError && (
+              <span className={styles.smartSlotsHint} role="alert">
+                {slotsError}
+              </span>
+            )}
+            {!slotsLoading && !slotsError && slotsEmpty && slotSuggestions.length === 0 && (
               <span className={styles.smartSlotsHint}>
                 {t("smartSlots.none")}
               </span>
@@ -2149,47 +2205,155 @@ function ChannelStrip({
   onActivateChannel,
   mode,
 }: ChannelStripProps) {
-  return (
-    <div className={styles.channelStrip}>
-      {channels.map((c) => {
-        const on = selectedIds.has(c.id);
-        const active = mode === "per-channel" && activeTarget === c.id;
-        return (
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const groups = useMemo(() => groupChannelsByPlatform(channels), [channels]);
+
+  const toggleGroup = useCallback((key: string, current: boolean) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !current }));
+  }, []);
+
+  const renderChip = (
+    c: Channel,
+    opts?: {
+      extraCount?: number;
+      isExpanded?: boolean;
+      hiddenSelectedCount?: number;
+      onToggleExpand?: () => void;
+    },
+  ) => {
+    const on = selectedIds.has(c.id);
+    const active = mode === "per-channel" && activeTarget === c.id;
+    const extraCount = opts?.extraCount ?? 0;
+    const isExpanded = opts?.isExpanded ?? false;
+    const hiddenSelectedCount = opts?.hiddenSelectedCount ?? 0;
+    return (
+      <div
+        key={c.id}
+        style={{ display: "flex", alignItems: "center", gap: 6 }}
+      >
+        <button
+          type="button"
+          className={
+            styles.channelChip +
+            (on ? " " + styles.channelChipOn : "") +
+            (active ? " " + styles.channelChipActive : "")
+          }
+          style={{ flex: 1, minWidth: 0, justifyContent: "flex-start" }}
+          onClick={() => {
+            if (!on) {
+              onToggle(c.id);
+            } else if (mode === "per-channel") {
+              onActivateChannel(c.id);
+            } else {
+              onToggle(c.id);
+            }
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            onToggle(c.id);
+          }}
+          title={`${c.name} · ${c.platform}${
+            on ? " · click to " + (mode === "per-channel" ? "edit" : "remove") : " · click to add"
+          }`}
+          aria-pressed={on}
+        >
+          <ChannelAvatar
+            channel={c}
+            size={32}
+            circular
+            showPlatformBadge
+            inverted={!on}
+          />
+          <span className={styles.channelChipName} style={{ textAlign: "left" }}>
+            {c.name}
+            {c.identifier === "linkedin"
+              ? " (Profile)"
+              : c.identifier === "linkedin-page" || c.identifier === "facebook"
+              ? " (Page)"
+              : ""}
+          </span>
+        </button>
+        {extraCount > 0 && opts?.onToggleExpand && (
           <button
             type="button"
-            key={c.id}
-            className={
-              styles.channelChip +
-              (on ? " " + styles.channelChipOn : "") +
-              (active ? " " + styles.channelChipActive : "")
-            }
-            onClick={() => {
-              if (!on) {
-                onToggle(c.id);
-              } else if (mode === "per-channel") {
-                onActivateChannel(c.id);
-              } else {
-                onToggle(c.id);
-              }
+            onClick={opts.onToggleExpand}
+            aria-expanded={isExpanded}
+            data-testid={`composer-group-expand-${c.identifier || c.platform}`}
+            style={{
+              height: 28,
+              padding: "0 8px",
+              borderRadius: 6,
+              border: "1px solid var(--line)",
+              background: isExpanded ? "var(--fg)" : "var(--bg)",
+              color: isExpanded ? "var(--bg)" : "var(--fg)",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              flexShrink: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
             }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              onToggle(c.id);
-            }}
-            title={`${c.name} · ${c.platform}${
-              on ? " · click to " + (mode === "per-channel" ? "edit" : "remove") : " · click to add"
-            }`}
-            aria-pressed={on}
           >
-            <ChannelAvatar
-              channel={c}
-              size={44}
-              circular
-              showPlatformBadge
-              inverted={!on}
-            />
-            <span className={styles.channelChipName}>{c.name}</span>
+            <span>{isExpanded ? `▴ -${extraCount}` : `▾ +${extraCount}`}</span>
+            {!isExpanded && hiddenSelectedCount > 0 && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "var(--accent)",
+                }}
+              >
+                · {hiddenSelectedCount} on
+              </span>
+            )}
           </button>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        maxHeight: 230,
+        overflowY: "auto",
+        paddingRight: 2,
+      }}
+    >
+      {groups.map((group) => {
+        const [primary, ...rest] = group.items;
+        const hiddenSelectedCount = rest.filter((c) => selectedIds.has(c.id)).length;
+        const isExpanded = expandedGroups[group.key] ?? hiddenSelectedCount > 0;
+        return (
+          <div
+            key={group.key}
+            style={{ display: "flex", flexDirection: "column", gap: 4 }}
+          >
+            {renderChip(primary, {
+              extraCount: rest.length,
+              isExpanded,
+              hiddenSelectedCount,
+              onToggleExpand: () => toggleGroup(group.key, isExpanded),
+            })}
+            {isExpanded && rest.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                  marginLeft: 12,
+                  paddingLeft: 10,
+                  borderLeft: "2px solid var(--line)",
+                }}
+              >
+                {rest.map((c) => renderChip(c))}
+              </div>
+            )}
+          </div>
         );
       })}
     </div>

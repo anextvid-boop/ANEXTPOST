@@ -40,9 +40,9 @@ function isPreference(v: unknown): v is ThemePreference {
 export const THEME_INIT_SCRIPT = `(function(){try{
 var s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
 var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
-var t=(s==='light'||s==='dark')?s:(m?'dark':'light');
+var t=(s==='light'||s==='dark')?s:(s==='system'?(m?'dark':'light'):'dark');
 document.documentElement.setAttribute('data-theme',t);
-}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
+}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`;
 
 function systemTheme(): ResolvedTheme {
   if (typeof window === "undefined" || !window.matchMedia) return "light";
@@ -52,12 +52,12 @@ function systemTheme(): ResolvedTheme {
 }
 
 function storedPreference(): ThemePreference {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "dark";
   try {
     const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (isPreference(raw)) return raw;
-  } catch {}
-  return "system";
+  } catch { }
+  return "dark";
 }
 
 interface ThemeState {
@@ -76,8 +76,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Server render and first client render must agree, so both start at the
   // defaults; the inline script has already painted the right theme, and the
   // mount effect below re-syncs React's copy of it.
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
-  const [systemPref, setSystemPref] = useState<ResolvedTheme>("light");
+  const [preference, setPreferenceState] = useState<ThemePreference>("dark");
+  const [systemPref, setSystemPref] = useState<ResolvedTheme>("dark");
   // Until this flips, React's idea of the theme is still the placeholder from
   // the first render. Writing that to <html> would overwrite what the inline
   // script correctly painted and flash the page light for a frame — for a
@@ -111,7 +111,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setPreferenceState(p);
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, p);
-    } catch {}
+    } catch { }
   }, []);
 
   const toggle = useCallback(() => {

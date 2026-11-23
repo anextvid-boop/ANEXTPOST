@@ -87,7 +87,13 @@ function placePanel(rect: DOMRect): PanelPos {
  * on open only; the poll asks for the count alone. The read mark the server
  * returns is the one from BEFORE that bump, which is what flags the new rows.
  */
-export function NotificationsBell({ compact = false }: { compact?: boolean }) {
+export function NotificationsBell({
+  compact = false,
+  className = "",
+}: {
+  compact?: boolean;
+  className?: string;
+}) {
   const t = useT();
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -241,6 +247,7 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         ref={triggerRef}
+        className={className || undefined}
         onClick={() => void toggle()}
         aria-label={
           count > 0

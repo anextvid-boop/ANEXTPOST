@@ -600,7 +600,7 @@ export class InstagramProvider
             pageId: p.id,
             ...(await (
               await fetch(
-                `https://graph.facebook.com/v20.0/${p.instagram_business_account.id}?fields=name,profile_picture_url&access_token=${accessToken}`
+                `https://graph.facebook.com/v20.0/${p.instagram_business_account.id}?fields=name,username,profile_picture_url&access_token=${accessToken}`
               )
             ).json()),
             id: p.instagram_business_account.id,
@@ -622,7 +622,7 @@ export class InstagramProvider
       // was persisted. Packing both into one composite string here needs no
       // frontend change: the picker already prefers `page.page`.
       page: `${p.pageId}:${p.id}`,
-      name: p.name,
+      name: p.name || p.username || p.id,
       // Flat URL string — the picker renders <img src={picture}>, so a
       // { data: { url } } object showed up as a broken image.
       picture: p.profile_picture_url || '',
@@ -660,8 +660,8 @@ export class InstagramProvider
       // ("undefined" as a literal string) as the persisted internalId, which
       // then targeted every publish/media call at .../undefined/media.
       id: id || igId,
-      name,
-      picture: profile_picture_url,
+      name: name || username || all?.name || igId,
+      picture: profile_picture_url || '',
       access_token: access_token + '___' + accessToken,
       username,
     };

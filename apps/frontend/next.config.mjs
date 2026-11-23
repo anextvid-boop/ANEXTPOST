@@ -29,23 +29,35 @@ const nextConfig = {
     ];
   },
   async redirects() {
+    const isRemoteStorage =
+      process.env.STORAGE_PROVIDER === 'cloudflare' ||
+      process.env.STORAGE_PROVIDER === 'minio';
     return [
       {
         source: '/api/uploads/:path*',
-        destination:
-          process.env.STORAGE_PROVIDER === 'local' ? '/uploads/:path*' : '/404',
+        destination: !isRemoteStorage ? '/uploads/:path*' : '/404',
         permanent: true,
       },
     ];
   },
   async rewrites() {
+    const isRemoteStorage =
+      process.env.STORAGE_PROVIDER === 'cloudflare' ||
+      process.env.STORAGE_PROVIDER === 'minio';
+    const backendOrigin =
+      process.env.BACKEND_INTERNAL_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      'http://127.0.0.1:3000';
     return [
       {
+        source: '/api/:path*',
+        destination: `${backendOrigin}/:path*`,
+      },
+      {
         source: '/uploads/:path*',
-        destination:
-          process.env.STORAGE_PROVIDER === 'local'
-            ? `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000'}/uploads/:path*`
-            : '/404',
+        destination: !isRemoteStorage
+          ? `${backendOrigin}/uploads/:path*`
+          : '/404',
       },
     ];
   },

@@ -1,23 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import styles from "./auth.module.css";
 
 interface Props {
   label?: string;
+  dividerLabel?: string;
 }
 
 /**
  * "Continue with Google" button.
- * Hits the backend to get the OAuth URL, then redirects the browser.
+ * Checks whether Google OAuth is configured on the backend; hides itself when unconfigured.
  */
-export function GoogleButton({ label }: Props) {
+export function GoogleButton({ label, dividerLabel }: Props) {
   const t = useT();
+  const [configuredUrl, setConfiguredUrl] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const buttonLabel = label ?? t("auth.googleContinue");
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<string | { url?: string }>(
+        "/auth/oauth/GOOGLE",
+        undefined,
+        { anonymous: true, silent: true },
+      )
+      .then((res) => {
+        if (!active) return;
+        const url = typeof res === "string" ? res : res?.url;
+        const hasClientId =
+          typeof url === "string" &&
+          url.trim().length > 0 &&
+          !/[?&]client_id=(?:&|$)/.test(url);
+        setConfiguredUrl(hasClientId ? url : null);
+      })
+      .catch(() => {
+        if (active) setConfiguredUrl(null);
+      })
+      .finally(() => {
+        if (active) setChecked(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!checked || !configuredUrl) {
+    return null;
+  }
 
   const onClick = async () => {
     if (loading) return;
@@ -30,7 +65,7 @@ export function GoogleButton({ label }: Props) {
         { anonymous: true, silent: true },
       );
       const url = typeof res === "string" ? res : res?.url;
-      if (url) {
+      if (url && !/[?&]client_id=(?:&|$)/.test(url)) {
         window.location.href = url;
         return;
       }
@@ -74,6 +109,11 @@ export function GoogleButton({ label }: Props) {
       {error && (
         <div className={styles.error} role="alert">
           {error}
+        </div>
+      )}
+      {dividerLabel && (
+        <div className={styles.divider}>
+          <span>{dividerLabel}</span>
         </div>
       )}
     </>

@@ -18,6 +18,13 @@ export function scoreSlots(
   const patternTotal = postingPattern?.length === 168
     ? postingPattern.reduce((a, b) => a + b, 0)
     : 0;
+  const maxHourTotal = patternTotal > 0
+    ? Math.max(
+        ...Array.from({ length: 24 }, (_, hr) =>
+          Array.from({ length: 7 }, (_, d) => postingPattern![d * 24 + hr] ?? 0).reduce((a, b) => a + b, 0),
+        ),
+      )
+    : 0;
   const offsetMs = tzOffsetMinutes * 60000;
   const ranked = slots.map((datetime) => {
     const local = new Date(datetime.getTime() + offsetMs);
@@ -31,7 +38,7 @@ export function scoreSlots(
       const hourTotal = Array.from({ length: 7 }, (_, d) => postingPattern![d * 24 + hour] ?? 0)
         .reduce((a, b) => a + b, 0);
       const daySignal = Math.min(1, (dayTotal / patternTotal) * 7);
-      const hourSignal = Math.min(1, (hourTotal / patternTotal) * 24);
+      const hourSignal = maxHourTotal > 0 ? hourTotal / maxHourTotal : 0;
       score = 0.5 * heuristic + 0.5 * (0.5 * daySignal + 0.5 * hourSignal);
     } else if (total > 0) {
       const ownSignal = (clickHistogram![hour] ?? 0) / total;

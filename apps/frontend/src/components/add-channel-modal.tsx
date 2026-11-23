@@ -12,51 +12,48 @@ interface PlatformOption {
   label: string;
   /** Used to look up the brand colour and glyph in `platform-icon.tsx`. */
   iconKey: string;
+  /** Optional short capability note (e.g. account-type requirement). */
+  note?: string;
 }
 
 /**
- * All providers wired up in `libraries/nestjs-libraries/src/integrations/social`.
- * Sorted by popularity / how often people are likely to connect them.
+ * Priority channels in the exact user-requested order:
+ * LinkedIn + LinkedIn Page together, YouTube, TikTok, Instagram + Instagram Personal together, Facebook, X.
  */
-const ALL_PLATFORMS: PlatformOption[] = [
-  // Tier 1 — mainstream social
-  { id: "x", label: "X", iconKey: "X" },
-  { id: "instagram", label: "Instagram", iconKey: "Instagram" },
-  { id: "facebook", label: "Facebook", iconKey: "Facebook" },
-  { id: "tiktok", label: "TikTok", iconKey: "TikTok" },
-  { id: "youtube", label: "YouTube", iconKey: "YouTube" },
+export const PRIORITY_PLATFORMS: PlatformOption[] = [
   { id: "linkedin", label: "LinkedIn", iconKey: "LinkedIn" },
   { id: "linkedin-page", label: "LinkedIn Page", iconKey: "LinkedInPage" },
-  // Threads hidden pending positive Meta app review — do not remove backend integration.
+  { id: "youtube", label: "YouTube", iconKey: "YouTube" },
+  { id: "tiktok", label: "TikTok", iconKey: "TikTok" },
+  { id: "instagram", label: "Instagram", iconKey: "Instagram" },
   {
     id: "instagram-standalone",
     label: "Instagram Personal",
     iconKey: "InstagramStandalone",
+    note: "Business / Creator",
   },
-  { id: "pinterest", label: "Pinterest", iconKey: "Pinterest" },
+  { id: "facebook", label: "Facebook", iconKey: "Facebook" },
+  { id: "x", label: "X", iconKey: "X" },
+];
 
-  // Tier 2 — chat / community
+/**
+ * Remaining channels in their existing relative order.
+ */
+export const OTHER_PLATFORMS: PlatformOption[] = [
+  { id: "pinterest", label: "Pinterest", iconKey: "Pinterest" },
   { id: "discord", label: "Discord", iconKey: "Discord" },
   { id: "slack", label: "Slack", iconKey: "Slack" },
   { id: "telegram", label: "Telegram", iconKey: "Telegram" },
-
-  // Tier 3 — video / streaming
   { id: "twitch", label: "Twitch", iconKey: "Twitch" },
-
-  // Tier 4 — alt / federated social
   { id: "bluesky", label: "Bluesky", iconKey: "Bluesky" },
   { id: "mastodon", label: "Mastodon", iconKey: "Mastodon" },
   { id: "wrapcast", label: "Farcaster", iconKey: "Farcaster" },
   { id: "nostr", label: "Nostr", iconKey: "Nostr" },
   { id: "lemmy", label: "Lemmy", iconKey: "Lemmy" },
-
-  // Tier 5 — productivity / business
   { id: "gmb", label: "Google Business", iconKey: "GoogleBusiness" },
   { id: "blogger", label: "Blogger", iconKey: "Blogger" },
   { id: "notion", label: "Notion", iconKey: "Notion" },
   { id: "listmonk", label: "Listmonk", iconKey: "Listmonk" },
-
-  // Tier 6 — blogging
   { id: "medium", label: "Medium", iconKey: "Medium" },
   { id: "wordpress", label: "WordPress", iconKey: "WordPress" },
   { id: "ghost", label: "Ghost", iconKey: "Ghost" },
@@ -64,8 +61,6 @@ const ALL_PLATFORMS: PlatformOption[] = [
   { id: "devto", label: "Dev.to", iconKey: "DevTo" },
   { id: "mataroa", label: "Mataroa", iconKey: "Mataroa" },
   { id: "writeas", label: "Write.as", iconKey: "WriteAs" },
-
-  // Tier 7 — design / niche
   { id: "dribbble", label: "Dribbble", iconKey: "Dribbble" },
   { id: "whop", label: "Whop", iconKey: "Whop" },
   { id: "moltbook", label: "Moltbook", iconKey: "Moltbook" },
@@ -81,6 +76,30 @@ function CloseIcon() {
     <svg viewBox="0 0 16 16" fill="none" aria-hidden>
       <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function PlatformTile({
+  opt,
+  onPick,
+}: {
+  opt: PlatformOption;
+  onPick: (platformId: string, label: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={`add-channel-tile-${opt.id}`}
+      className={styles.tile}
+      onClick={() => onPick(opt.id, opt.label)}
+      title={opt.note ? `${opt.label} (${opt.note} only — Meta deprecated personal-tier API)` : opt.label}
+    >
+      <span className={styles.icon}>
+        <PlatformIcon platform={opt.iconKey} size={42} />
+      </span>
+      <span className={styles.tileTitle}>{opt.label}</span>
+      {opt.note && <span className={styles.tileNote}>{opt.note}</span>}
+    </button>
   );
 }
 
@@ -129,23 +148,30 @@ export function AddChannelModal({ onClose, onPick }: AddChannelModalProps) {
           </button>
         </header>
 
-        <div className={styles.grid}>
-          {ALL_PLATFORMS.map((opt) => {
-            return (
-              <button
-                type="button"
-                key={opt.id}
-                className={styles.tile}
-                onClick={() => onPick(opt.id, opt.label)}
-                title={opt.label}
-              >
-                <span className={styles.icon}>
-                  <PlatformIcon platform={opt.iconKey} size={42} />
-                </span>
-                <span className={styles.tileTitle}>{opt.label}</span>
-              </button>
-            );
-          })}
+        <div className={styles.body}>
+          <section aria-labelledby="add-channel-priority-heading">
+            <h2 id="add-channel-priority-heading" className={styles.sectionHeading}>
+              Priority Apps
+            </h2>
+            <div className={styles.grid}>
+              {PRIORITY_PLATFORMS.map((opt) => (
+                <PlatformTile key={opt.id} opt={opt} onPick={onPick} />
+              ))}
+            </div>
+          </section>
+
+          <hr className={styles.sectionDivider} />
+
+          <section aria-labelledby="add-channel-other-heading">
+            <h2 id="add-channel-other-heading" className={styles.sectionHeading}>
+              Other Apps
+            </h2>
+            <div className={styles.grid}>
+              {OTHER_PLATFORMS.map((opt) => (
+                <PlatformTile key={opt.id} opt={opt} onPick={onPick} />
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>

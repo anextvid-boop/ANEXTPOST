@@ -1,7 +1,7 @@
 import { Posts } from "@/components/posts";
 
 export const metadata = {
-  title: "Posts · PostSider",
+  title: "Posts · ANEXTPOST",
 };
 
 export default function PostsPage() {

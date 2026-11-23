@@ -160,7 +160,7 @@ export function ApproverLinkView({ token }: { token: string }) {
     <main style={{ maxWidth: 560, margin: "0 auto", padding: "48px 20px" }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>
-          PostSider
+          ANEXTPOST
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: "4px 0 0" }}>{t("approverLink.title")}</h1>
       </div>

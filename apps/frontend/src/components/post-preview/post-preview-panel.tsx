@@ -39,6 +39,7 @@ export function PostPreviewPanel({
   nicknameFor,
 }: Props) {
   const [tab, setTab] = useState<string | null>(null);
+  const [expandedFoldFor, setExpandedFoldFor] = useState<string | null>(null);
 
   if (channels.length === 0) {
     return (
@@ -49,7 +50,9 @@ export function PostPreviewPanel({
   }
 
   const active =
-    channels.find((c) => c.id === (tab ?? activeTarget)) ?? channels[0];
+    channels.find((c) => c.id === tab) ??
+    channels.find((c) => c.id === activeTarget) ??
+    channels[0];
   const identifier = identifierFor(active);
   const family = familyFor(identifier);
   const max = maxLenFor(active);
@@ -58,7 +61,10 @@ export function PostPreviewPanel({
   const aspect = mediaAspectRatio(family, (active as any).postType);
   const fold = previewFold(family);
   const folded = fold > 0 ? truncateBody(body, fold) : { text: body, truncated: false };
+  const isFoldExpanded = expandedFoldFor === active.id;
   const visibleThread = threadParts.filter((p) => p.trim().length > 0);
+  const threadOverCount =
+    max > 0 ? visibleThread.filter((p) => p.length > max).length : 0;
   const isMicroblog = family === "microblog";
 
   return (
@@ -115,8 +121,25 @@ export function PostPreviewPanel({
           <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>Start writing for a preview.</p>
         ) : (
           <p style={{ margin: 0, fontSize: 14, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
-            {folded.text}
-            {folded.truncated && <span style={{ color: "var(--muted)" }}> …more</span>}
+            {isFoldExpanded ? body : folded.text}
+            {folded.truncated && (
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedFoldFor(isFoldExpanded ? null : active.id)
+                }
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  padding: "0 0 0 4px",
+                  color: "var(--muted)",
+                  fontSize: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                {isFoldExpanded ? "less" : "…more"}
+              </button>
+            )}
           </p>
         )}
 
@@ -175,8 +198,10 @@ export function PostPreviewPanel({
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, color: over ? "var(--danger-bright)" : "var(--muted)", fontWeight: over ? 600 : 400 }}>
-          {body.length}{max > 0 ? ` / ${max}` : ""}{over ? " · over limit" : ""}
+        <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, color: over || threadOverCount > 0 ? "var(--danger-bright)" : "var(--muted)", fontWeight: over || threadOverCount > 0 ? 600 : 400 }}>
+          {body.length}{max > 0 ? ` / ${max}` : ""}
+          {over ? " · over limit" : ""}
+          {threadOverCount > 0 ? ` · ${threadOverCount} thread item${threadOverCount === 1 ? "" : "s"} over limit` : ""}
         </div>
       </article>
       )}

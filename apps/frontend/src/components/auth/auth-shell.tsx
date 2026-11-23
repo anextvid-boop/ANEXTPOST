@@ -23,16 +23,7 @@ export function AuthShell({
       {banner && <div className={styles.topBanner}>{banner}</div>}
       <div className={styles.card}>
         <div className={styles.brand}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand/postsider-logo.png"
-            alt=""
-            width={36}
-            height={36}
-            aria-hidden
-            className={styles.brandLogo}
-          />
-          <span className={styles.brandName}>PostSider</span>
+          <span className={styles.brandName}>ANEXTPOST</span>
         </div>
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.subtitle}>{subtitle}</p>
@@ -41,7 +32,7 @@ export function AuthShell({
         <div className={styles.legal}>
           {t("auth.legalPrefix")}{" "}
           <a
-            href="https://postsider.com/terms"
+            href="https://github.com/anextvid-boop/ANEXTPOST#terms"
             target="_blank"
             rel="noreferrer"
           >
@@ -49,7 +40,7 @@ export function AuthShell({
           </a>{" "}
           {t("auth.legalAnd")}{" "}
           <a
-            href="https://postsider.com/privacy"
+            href="https://github.com/anextvid-boop/ANEXTPOST#privacy"
             target="_blank"
             rel="noreferrer"
           >

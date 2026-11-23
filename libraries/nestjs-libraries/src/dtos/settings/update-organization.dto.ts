@@ -18,6 +18,16 @@ export class UpdateOrganizationDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(32)
+  color?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  icon?: string | null;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(64)
   defaultTimezone?: string | null;
 

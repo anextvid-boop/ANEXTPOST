@@ -9,7 +9,7 @@ import { ProviderCredentialsService } from '@postsider/nestjs-libraries/database
 const ENV_MAPPINGS: Record<string, Record<string, 'clientId' | 'clientSecret'>> = {
   x: { X_API_KEY: 'clientId', X_API_SECRET: 'clientSecret' },
   linkedin: { LINKEDIN_CLIENT_ID: 'clientId', LINKEDIN_CLIENT_SECRET: 'clientSecret' },
-  'linkedin-page': { LINKEDIN_CLIENT_ID: 'clientId', LINKEDIN_CLIENT_SECRET: 'clientSecret' },
+  'linkedin-page': { LINKEDIN_PAGE_CLIENT_ID: 'clientId', LINKEDIN_PAGE_CLIENT_SECRET: 'clientSecret' },
   facebook: { FACEBOOK_APP_ID: 'clientId', FACEBOOK_APP_SECRET: 'clientSecret' },
   instagram: { FACEBOOK_APP_ID: 'clientId', FACEBOOK_APP_SECRET: 'clientSecret' },
   'instagram-standalone': { INSTAGRAM_APP_ID: 'clientId', INSTAGRAM_APP_SECRET: 'clientSecret' },

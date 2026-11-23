@@ -34,9 +34,11 @@ describe("mediaAspectRatio", () => {
   it("uses 9/16 for vertical video", () => {
     expect(mediaAspectRatio("video")).toBe("9 / 16");
   });
-  it("uses 1/1 for an instagram feed post and 9/16 for a story", () => {
+  it("uses 1/1 for an instagram feed post and 9/16 for a story or reel", () => {
     expect(mediaAspectRatio("instagram")).toBe("1 / 1");
     expect(mediaAspectRatio("instagram", "story")).toBe("9 / 16");
+    expect(mediaAspectRatio("instagram", "reel")).toBe("9 / 16");
+    expect(mediaAspectRatio("instagram", "reels")).toBe("9 / 16");
   });
   it("uses 16/9 for linkedin/article", () => {
     expect(mediaAspectRatio("linkedin")).toBe("16 / 9");

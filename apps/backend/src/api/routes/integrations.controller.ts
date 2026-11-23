@@ -143,7 +143,44 @@ export class IntegrationsController {
     @Param('id') id: string,
     @Body() body: any
   ) {
-    return this._integrationService.saveProviderPage(org.id, id, body);
+    const activeChannelLimit = isBillingEnabled()
+      ? (await this._permissionsService.getPackageOptions(org.id)).subscription
+          ?.totalChannels || 0
+      : undefined;
+    return this._integrationService.saveProviderPage(
+      org.id,
+      id,
+      body,
+      activeChannelLimit
+    );
+  }
+
+  @Get('/:id/available-pages')
+  @CheckPolicies([AuthorizationActions.Create, Sections.CHANNEL])
+  async getAvailablePages(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    return this._integrationService.getAvailablePages(org.id, id);
+  }
+
+  @Post('/:id/attach-pages')
+  @CheckPolicies([AuthorizationActions.Create, Sections.CHANNEL])
+  async attachAdditionalPages(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: { pages?: string[] }
+  ) {
+    const activeChannelLimit = isBillingEnabled()
+      ? (await this._permissionsService.getPackageOptions(org.id)).subscription
+          ?.totalChannels || 0
+      : undefined;
+    return this._integrationService.attachAdditionalPages(
+      org.id,
+      id,
+      Array.isArray(body?.pages) ? body.pages : [],
+      activeChannelLimit
+    );
   }
 
   @Get('/:identifier/internal-plugs')
@@ -441,7 +478,7 @@ export class IntegrationsController {
     const mappings: Record<string, Record<string, 'clientId' | 'clientSecret'>> = {
       x: { X_API_KEY: 'clientId', X_API_SECRET: 'clientSecret' },
       linkedin: { LINKEDIN_CLIENT_ID: 'clientId', LINKEDIN_CLIENT_SECRET: 'clientSecret' },
-      'linkedin-page': { LINKEDIN_CLIENT_ID: 'clientId', LINKEDIN_CLIENT_SECRET: 'clientSecret' },
+      'linkedin-page': { LINKEDIN_PAGE_CLIENT_ID: 'clientId', LINKEDIN_PAGE_CLIENT_SECRET: 'clientSecret' },
       facebook: { FACEBOOK_APP_ID: 'clientId', FACEBOOK_APP_SECRET: 'clientSecret' },
       instagram: { FACEBOOK_APP_ID: 'clientId', FACEBOOK_APP_SECRET: 'clientSecret' },
       'instagram-standalone': { INSTAGRAM_APP_ID: 'clientId', INSTAGRAM_APP_SECRET: 'clientSecret' },

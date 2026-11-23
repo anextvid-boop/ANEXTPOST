@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
+import { SlideOverDrawer } from "./slide-over-drawer";
 import {
   getPostComments,
   addPostComment,
@@ -162,38 +163,13 @@ export function PostDetailDrawer({ postId, status, onClose }: PostDetailDrawerPr
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("postDetail.title")}
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "var(--scrim)",
-        display: "flex",
-        justifyContent: "flex-end",
-        zIndex: 200,
-      }}
+    <SlideOverDrawer
+      label={t("postDetail.title")}
+      title={t("postDetail.title")}
+      closeLabel={t("postDetail.close")}
+      size="sm"
+      onClose={onClose}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(420px, 100%)",
-          height: "100%",
-          background: "var(--bg)",
-          borderLeft: "1px solid var(--line-soft)",
-          padding: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          overflowY: "auto",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>{t("postDetail.title")}</span>
-          <button type="button" style={ghostBtn} onClick={onClose}>{t("postDetail.close")}</button>
-        </div>
 
         {error && (
           <div role="alert" style={{ padding: "10px 12px", borderRadius: 8, background: "var(--danger-soft)", color: "var(--danger)", fontSize: 13 }}>{error}</div>
@@ -263,7 +239,8 @@ export function PostDetailDrawer({ postId, status, onClose }: PostDetailDrawerPr
               </div>
               <button
                 type="button"
-                style={{ ...ghostBtn, alignSelf: "flex-end", opacity: draft.trim() && !sending ? 1 : 0.5 }}
+                className="anext-btn-primary"
+                style={{ alignSelf: "flex-end" }}
                 disabled={!draft.trim() || sending}
                 onClick={onSend}
               >
@@ -272,7 +249,6 @@ export function PostDetailDrawer({ postId, status, onClose }: PostDetailDrawerPr
             </section>
           </>
         )}
-      </div>
-    </div>
+    </SlideOverDrawer>
   );
 }

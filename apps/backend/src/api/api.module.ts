@@ -48,6 +48,9 @@ import { AnnouncementsController } from '@postsider/backend/api/routes/announcem
 import { AgentActivityController } from '@postsider/backend/api/routes/agent-activity.controller';
 import { PoliciesController } from '@postsider/backend/api/routes/policies.controller';
 import { ApprovalFlowsController } from '@postsider/backend/api/routes/approval-flows.controller';
+import { BuilderController } from '@postsider/backend/api/routes/builder.controller';
+import { BuilderService } from '@postsider/backend/services/builder.service';
+import { YoutubeExtractService } from '@postsider/backend/services/youtube-extract.service';
 import { AdminController } from '@postsider/backend/api/routes/admin.controller';
 import { AuthProviderManager } from '@postsider/backend/services/auth/providers/providers.manager';
 import { GithubProvider } from '@postsider/backend/services/auth/providers/github.provider';
@@ -86,6 +89,7 @@ const authenticatedController = [
   AgentActivityController,
   PoliciesController,
   ApprovalFlowsController,
+  BuilderController,
 ];
 @Module({
   imports: [UploadModule],
@@ -124,6 +128,8 @@ const authenticatedController = [
     WalletProvider,
     OauthProvider,
     ReportPdfService,
+    BuilderService,
+    YoutubeExtractService,
   ],
   get exports() {
     return [...this.imports, ...this.providers];

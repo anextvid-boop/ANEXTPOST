@@ -130,16 +130,25 @@
   padding: 11px 14px;
   border-radius: var(--radius-md);
   border: none;
-  background: var(--fg);
-  color: var(--bg);
+  background: var(--accent);
+  color: var(--accent-fg);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 120ms var(--ease);
+  transition: background 120ms var(--ease), opacity 120ms var(--ease);
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--selection-fg);
+  outline-offset: 2px;
 }
 
 .submit:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -233,9 +242,9 @@
   border: 1px solid var(--line);
 }
 
-.submitSecondary:hover {
-  background: var(--fg);
-  color: var(--bg);
+.submitSecondary:hover:not(:disabled) {
+  background: var(--hover-strong);
+  color: var(--fg);
 }
 
 .divider {

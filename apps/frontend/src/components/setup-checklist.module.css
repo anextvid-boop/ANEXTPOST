@@ -1,9 +1,127 @@
+.stripWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.stripPill {
+  height: var(--ctrl-height);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: var(--ctrl-border);
+  border-radius: var(--ctrl-radius);
+  background: var(--ctrl-surface);
+  box-shadow: var(--ctrl-bevel);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
+    transform 120ms var(--ease);
+}
+
+.stripPill:hover {
+  background: var(--hover-strong);
+  border-color: var(--line);
+}
+
+.stripPill:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
+}
+
+.stripPill:active {
+  transform: scale(0.98);
+}
+
+.stripPillOpen {
+  background: var(--selection-bg);
+  border-color: var(--selection-border);
+}
+
+.popoverCard {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 440px;
+  max-width: calc(100vw - 24px);
+  z-index: 45;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  padding: 16px 18px;
+  box-shadow: 0 14px 36px rgb(var(--shadow) / calc(0.2 * var(--shadow-boost)));
+  animation: anextPopoverIn 150ms var(--ease) both;
+}
+
+.compactBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  padding: 8px 14px;
+  margin-bottom: 12px;
+}
+
+.compactLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.compactTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.compactCount {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.compactProgress {
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(var(--tint) / 0.08);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.compactActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toggleBtn {
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--fg);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 120ms var(--ease);
+}
+
+.toggleBtn:hover {
+  background: var(--hover);
+}
+
 .card {
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-lg);
   background: var(--bg);
-  padding: 18px 20px;
-  margin-bottom: 20px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
 }
 
 .header {

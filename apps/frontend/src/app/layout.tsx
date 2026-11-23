@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Inter, Changa_One } from "next/font/google";
+import { Inter } from "next/font/google";
 import { AppRoot } from "@/components/app-root";
 import { AnalyticsConsentBanner } from "@/components/analytics-consent-banner";
 import { FunnelAnalyticsBridge } from "@/components/funnel-analytics-bridge";
@@ -15,15 +15,8 @@ const inter = Inter({
   display: "swap",
 });
 
-const changaOne = Changa_One({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-brand",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "PostSider",
+  title: "ANEXTPOST",
   description: "Social media scheduling and publishing platform.",
   robots: "noindex, nofollow",
 };
@@ -35,7 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     // differ by that one attribute on purpose.
     <html
       lang="en"
-      className={`${inter.variable} ${changaOne.variable}`}
+      className={inter.variable}
       suppressHydrationWarning
     >
       <body>

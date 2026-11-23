@@ -27,15 +27,20 @@ export function RewritePanel({ content, platform, onInsert, onClose }: Props) {
   const [count, setCount] = useState(3);
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [variants, setVariants] = useState<string[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const run = async () => {
     setState("loading");
+    setErrorMessage(null);
     try {
       const res = await rewritePost({ content, tone, count, platform });
       setVariants(res.variants || []);
       setState("done");
       void refresh();
-    } catch {
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error && err.message ? err.message : "Could not generate. Try again.",
+      );
       setState("error");
     }
   };
@@ -79,7 +84,17 @@ export function RewritePanel({ content, platform, onInsert, onClose }: Props) {
           {user.aiUsage.remaining === null ? t("postChecker.unlimitedUses") : t("postChecker.usesRemaining", { count: user.aiUsage.remaining })}
         </p>}
 
-        {state === "error" && <p style={{ fontSize: 12, color: "var(--danger-bright)", margin: 0 }}>Could not generate. Try again.</p>}
+        {state === "error" && (
+          <p role="alert" style={{ fontSize: 12, color: "var(--danger-bright, #dc2626)", margin: 0 }}>
+            {errorMessage || "Could not generate. Try again."}
+          </p>
+        )}
+
+        {state === "done" && variants.length === 0 && (
+          <p style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
+            No rewrite variants were returned. Try a different tone or adjust your draft.
+          </p>
+        )}
 
         {state === "done" && variants.map((v, i) => (
           <div key={i} style={{ border: "1px solid var(--line-soft)", borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>

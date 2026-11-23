@@ -13,12 +13,18 @@ model Organization {
   name                 String
   description          String?
   logo                 String?
+  color                String?
+  icon                 String?
   defaultTimezone      String?
   referralSource       String?
   brandVoice           String?
   brandAudience        String?
   brandRules           String?
   brandForbiddenWords  String?
+  projectType          String?
+  brandHandle          String?
+  brandWebsite         String?
+  brandEmail           String?
   agencyMode           Boolean                    @default(false)
   publishingState      PublishingState            @default(ACTIVE)
   publishingPausedAt   DateTime?
@@ -39,6 +45,11 @@ model Organization {
   github               GitHub[]
   Integration          Integration[]
   media                Media[]
+  mediaCollections     MediaCollection[]
+  builderCollections   BuilderCollection[]
+  builderPostTypes     BuilderPostType[]
+  builderFormulas      BuilderFormula[]
+  builderVariations    BuilderVariation[]
   buyerOrganization    MessagesGroup[]
   notifications        Notifications[]
   plugs                Plugs[]
@@ -221,12 +232,99 @@ model GitHub {
 
 
 
+model MediaCollection {
+  id             String       @id @default(uuid())
+  name           String
+  organizationId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  media          Media[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model BuilderCollection {
+  id              String             @id @default(uuid())
+  organizationId  String
+  name            String
+  description     String?
+  isSampleExample Boolean            @default(false)
+  sampleBatch     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  formulas        BuilderFormula[]
+  variations      BuilderVariation[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model BuilderPostType {
+  id              String             @id @default(uuid())
+  organizationId  String
+  name            String
+  description     String?
+  isSampleExample Boolean            @default(false)
+  sampleBatch     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  formulas        BuilderFormula[]
+  variations      BuilderVariation[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model BuilderFormula {
+  id              String             @id @default(uuid())
+  organizationId  String
+  name            String
+  length          String             @default("standard")
+  collectionId    String?
+  postTypeId      String?
+  sectionsJson    String
+  isSampleExample Boolean            @default(false)
+  sampleBatch     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collection      BuilderCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  postType        BuilderPostType?   @relation(fields: [postTypeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+model BuilderVariation {
+  id              String             @id @default(uuid())
+  organizationId  String
+  sectionRole     String
+  title           String?
+  content         String
+  collectionId    String?
+  postTypeId      String?
+  lengthHint      String?
+  isSampleExample Boolean            @default(false)
+  sampleBatch     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collection      BuilderCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  postType        BuilderPostType?   @relation(fields: [postTypeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, sectionRole])
+}
+
 model Media {
   id                 String              @id @default(uuid())
   name               String
   originalName       String?
   path               String
   organizationId     String
+  collectionId       String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   deletedAt          DateTime?
@@ -238,13 +336,24 @@ model Media {
   thumbnail          String?
   alt                String?
   thumbnailTimestamp Int?
+  contentHash        String?
+  contentCategory    String              @default("standard")
+  sourceType         String              @default("upload")
+  retentionPolicy    String              @default("keep_permanent")
+  eligibleForDeletionAt DateTime?
+  storageDeletedAt   DateTime?
   organization       Organization        @relation(fields: [organizationId], references: [id])
+  collection         MediaCollection?    @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   userPicture        User[]
   oauthApps          OAuthApp[]
 
   @@index([name])
   @@index([organizationId])
+  @@index([collectionId])
   @@index([type])
+  @@index([organizationId, contentHash])
+  @@index([organizationId, contentCategory])
+  @@index([organizationId, retentionPolicy, eligibleForDeletionAt])
 }
 
 

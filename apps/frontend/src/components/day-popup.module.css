@@ -1,27 +1,123 @@
+.tray {
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: var(--ctrl-radius);
+  background: var(--bg);
+  box-shadow: 0 -2px 12px rgb(var(--shadow) / calc(0.08 * var(--shadow-boost))),
+    var(--ctrl-bevel);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.trayBar {
+  height: 36px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--ctrl-surface);
+}
+
+.trayToggle {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+
+.trayToggle:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.trayDate {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trayCount {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.trayActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.trayNewBtn {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--ctrl-radius-segment);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--ctrl-bevel-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.trayNewBtn:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.trayNewBtn:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
+}
+
+.trayBody {
+  height: 260px;
+  border-top: 1px solid var(--line-soft);
+  overflow-y: auto;
+  padding: 8px 14px 14px 8px;
+  animation: fadeIn 150ms var(--ease) both;
+}
+
 .backdrop {
   position: fixed;
   inset: 0;
   background: var(--scrim);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 50;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
   animation: fadeIn 160ms var(--ease);
 }
 
 .modal {
-  width: min(640px, 100%);
-  max-height: calc(100vh - 48px);
+  width: min(460px, 100%);
+  height: 100%;
+  max-height: 100vh;
   background: var(--bg);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--line-soft);
+  border-radius: 0;
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 30px 80px rgb(var(--shadow) / calc(0.18 * var(--shadow-boost)));
-  animation: scaleIn 180ms var(--ease);
+  box-shadow: -12px 0 36px rgb(var(--shadow) / calc(0.18 * var(--shadow-boost)));
+  animation: slideInRight 180ms var(--ease);
   overflow: hidden;
 }
 
@@ -212,9 +308,9 @@
   right: 0;
   background: var(--bg);
   color: var(--fg);
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  border-radius: var(--ctrl-radius);
+  padding: 8px 11px;
   font: inherit;
   text-align: left;
   letter-spacing: -0.005em;
@@ -225,11 +321,13 @@
   align-items: center;
   gap: 10px;
   overflow: hidden;
-  transition: transform 120ms var(--ease), background 140ms var(--ease);
+  transition: transform 120ms var(--ease), background 140ms var(--ease),
+    border-color 140ms var(--ease);
 }
 
 .event:hover {
-  background: rgb(var(--tint) / 0.025);
+  background: var(--hover);
+  border-color: var(--lift-ring);
 }
 
 .event:active {
@@ -309,7 +407,20 @@
   to { opacity: 1; }
 }
 
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (max-height: 760px), (max-width: 900px) {
+  .trayBody {
+    height: 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal {
+    width: 100%;
+    border-left: none;
+  }
 }

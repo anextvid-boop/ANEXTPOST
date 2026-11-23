@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './posts.module.css';
 import { ChannelAvatar } from './channel-avatar';
+import { PlatformIcon } from './platform-icon';
+import { DestinationFilterChips } from './destination-filter-chips';
 import {
   type CalendarEvent,
   type Channel,
@@ -13,6 +15,7 @@ import { useChannels } from '@/lib/use-channels';
 import {
   createPost,
   fetchPostDetail,
+  fetchCalendarPosts,
   deletePostGroup,
   uploadMedia,
   fetchPostsList,
@@ -246,7 +249,25 @@ export function Posts() {
   const t = useT();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [query, setQuery] = useState('');
+  const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [selectedDestIds, setSelectedDestIds] = useState<string[]>([]);
+  const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
+  const [bulkReviewOpen, setBulkReviewOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkRows, setBulkRows] = useState<
+    Array<{
+      ev: CalendarEvent;
+      channel?: Channel;
+      dateIso: string;
+      ymd: string;
+      time: string;
+      missingDest: boolean;
+      clashReason: string | null;
+      status: 'pending' | 'success' | 'error';
+      errorMsg?: string;
+    }>
+  >([]);
   const [range, setRange] = useState<RangePreset>('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -313,6 +334,22 @@ export function Posts() {
     for (const c of channels) m.set(c.id, c);
     return m;
   }, [channels]);
+
+  const platformOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of channels) {
+      if (c.platform) set.add(c.platform);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [channels]);
+
+  const filteredChannelOptions = useMemo(
+    () =>
+      platformFilter === 'all'
+        ? channels
+        : channels.filter((c) => c.platform === platformFilter),
+    [channels, platformFilter],
+  );
 
   // Pull posts in pages of 100 across all states. The Posts page is meant
   // to be a single scrollable list of "every post you have", so we fetch
@@ -381,7 +418,12 @@ export function Posts() {
   const preStatus = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allWithStatus.filter(({ ev }) => {
+      const ch = channelsById.get(ev.channelId);
+      if (platformFilter !== 'all' && ch?.platform !== platformFilter)
+        return false;
       if (channelFilter !== 'all' && ev.channelId !== channelFilter)
+        return false;
+      if (selectedDestIds.length > 0 && !selectedDestIds.includes(ev.channelId))
         return false;
       if (bounds.start || bounds.end) {
         const d = parseDate(ev.date);
@@ -392,13 +434,12 @@ export function Posts() {
         if (bounds.end && d.getTime() > bounds.end.getTime()) return false;
       }
       if (!q) return true;
-      const ch = channelsById.get(ev.channelId);
       const haystack = `${ev.title} ${ev.excerpt ?? ''} ${ch?.name ?? ''} ${
         ch?.platform ?? ''
       }`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [allWithStatus, bounds, channelFilter, channelsById, query]);
+  }, [allWithStatus, bounds, channelFilter, channelsById, platformFilter, query, selectedDestIds]);
 
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = {
@@ -466,18 +507,194 @@ export function Posts() {
 
   const filtersActive =
     filter !== 'all' ||
+    platformFilter !== 'all' ||
     channelFilter !== 'all' ||
+    selectedDestIds.length > 0 ||
     range !== 'all' ||
     query.trim() !== '';
 
   const resetFilters = useCallback(() => {
     setFilter('all');
+    setPlatformFilter('all');
     setChannelFilter('all');
+    setSelectedDestIds([]);
     setRange('all');
     setFrom('');
     setTo('');
     setQuery('');
   }, []);
+
+  const visibleDraftItems = useMemo(
+    () => items.filter((it) => it.status === 'draft'),
+    [items],
+  );
+
+  const openBulkScheduleReview = useCallback(async () => {
+    const chosen = items
+      .filter((it) => it.status === 'draft' && selectedDraftIds.has(it.ev.id))
+      .map((it) => it.ev);
+    if (chosen.length === 0) return;
+
+    setBulkBusy(true);
+    setBulkReviewOpen(true);
+    try {
+      const toPlannedDate = (ev: CalendarEvent): Date | null => {
+        const base = parseDate(ev.date);
+        if (!base) return null;
+        if (ev.time && /^\d{1,2}:\d{2}/.test(ev.time)) {
+          const [hh, mm] = ev.time.split(':').map(Number);
+          return new Date(
+            base.getFullYear(),
+            base.getMonth(),
+            base.getDate(),
+            Number.isFinite(hh) ? hh : 0,
+            Number.isFinite(mm) ? mm : 0,
+            0,
+            0,
+          );
+        }
+        return base;
+      };
+      const timestamps = chosen
+        .map((ev) => toPlannedDate(ev)?.getTime() ?? Date.now())
+        .sort((a, b) => a - b);
+      const minDt = new Date(timestamps[0] - 86400_000).toISOString();
+      const maxDt = new Date(timestamps[timestamps.length - 1] + 86400_000).toISOString();
+      let clashCheckFailed = false;
+      const calendarPosts = await fetchCalendarPosts(minDt, maxDt).catch(
+        (err) => {
+          console.error('[bulk-schedule-clash-check]', err);
+          clashCheckFailed = true;
+          return [] as BackendPost[];
+        },
+      );
+      if (clashCheckFailed) {
+        setToast('Could not verify live schedule clashes; please double-check times.');
+      }
+      const officialQueue = calendarPosts.filter(
+        (p) => p.state === 'QUEUE',
+      );
+
+      const initialRows = chosen.map((ev) => {
+        const dt = toPlannedDate(ev) ?? new Date();
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        const hh = String(dt.getHours()).padStart(2, '0');
+        const mm = String(dt.getMinutes()).padStart(2, '0');
+        const ch = channelsById.get(ev.channelId);
+        return {
+          ev,
+          channel: ch,
+          dateIso: dt.toISOString(),
+          ymd: `${y}-${m}-${d}`,
+          time: `${hh}:${mm}`,
+          missingDest: !ch,
+          clashReason: null as string | null,
+          status: 'pending' as const,
+        };
+      });
+
+      const computed = initialRows.map((row, idx) => {
+        const rowMs = new Date(row.dateIso).getTime();
+        const clashOfficial = officialQueue.find(
+          (op) =>
+            op.integration?.id === row.ev.channelId &&
+            Math.abs(new Date(op.publishDate).getTime() - rowMs) < 30 * 60_000,
+        );
+        if (clashOfficial) {
+          return {
+            ...row,
+            clashReason: `Clashes (<30m) with scheduled post on ${row.ymd} ${row.time}`,
+          };
+        }
+        const clashSibling = initialRows.find(
+          (other, oIdx) =>
+            oIdx !== idx &&
+            other.ev.channelId === row.ev.channelId &&
+            Math.abs(new Date(other.dateIso).getTime() - rowMs) < 30 * 60_000,
+        );
+        if (clashSibling) {
+          return {
+            ...row,
+            clashReason: `Clashes (<30m) with another selected draft on ${row.ymd} ${row.time}`,
+          };
+        }
+        return row;
+      });
+      setBulkRows(computed);
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [channelsById, items, selectedDraftIds]);
+
+  const runBulkSchedule = useCallback(
+    async (retryOnlyFailed: boolean) => {
+      setBulkBusy(true);
+      try {
+        const nextRows = [...bulkRows];
+        const succeededIds = new Set<string>();
+        for (let i = 0; i < nextRows.length; i++) {
+          const row = nextRows[i];
+          if (row.status === 'success') continue;
+          if (retryOnlyFailed && row.status !== 'error') continue;
+          if (row.missingDest) {
+            nextRows[i] = {
+              ...row,
+              status: 'error',
+              errorMsg: 'Missing destination channel',
+            };
+            continue;
+          }
+          try {
+            const detail = await fetchPostDetail(row.ev.id);
+            const [main, ...rest] = detail.posts;
+            const media = (main?.image || []).map((img) => ({
+              id: img.id ?? '',
+              path: img.url,
+            }));
+            const channelId = detail.integration || row.ev.channelId;
+            await createPost({
+              type: 'update',
+              date: row.dateIso,
+              channelIds: [channelId],
+              body: main?.content ?? row.ev.title ?? '',
+              perChannelBody: {},
+              threadParts: rest.map((part) => part.content ?? ''),
+              media,
+              shortLink: false,
+              tags: [],
+              group: row.ev.group,
+            });
+            nextRows[i] = { ...row, status: 'success', errorMsg: undefined };
+            succeededIds.add(row.ev.id);
+          } catch (err) {
+            nextRows[i] = {
+              ...row,
+              status: 'error',
+              errorMsg:
+                err instanceof Error ? err.message : 'Failed to schedule draft',
+            };
+          }
+        }
+        setBulkRows(nextRows);
+        if (succeededIds.size > 0) {
+          setSelectedDraftIds((prev) => {
+            const next = new Set(prev);
+            for (const id of succeededIds) next.delete(id);
+            return next;
+          });
+          setLoadAttempt((n) => n + 1);
+          setToast(
+            `Scheduled ${succeededIds.size} draft${succeededIds.size === 1 ? '' : 's'} onto 6 Schedule.`,
+          );
+        }
+      } finally {
+        setBulkBusy(false);
+      }
+    },
+    [bulkRows],
+  );
 
   const handleRequestApproval = useCallback(
     async (postId: string) => {
@@ -623,6 +840,9 @@ export function Posts() {
     const isoDate = (() => {
       if (post.date && post.time) {
         const dt = new Date(`${post.date}T${post.time}:00`);
+        if (Number.isNaN(dt.getTime())) {
+          throw new Error('Invalid date or time.');
+        }
         return dt.toISOString();
       }
       return new Date().toISOString();
@@ -774,6 +994,22 @@ export function Posts() {
           ))}
         </div>
 
+        {channels.length > 0 && (
+          <div style={{ padding: '4px 0 8px' }}>
+            <DestinationFilterChips
+              channels={channels.map((c) => ({
+                id: c.id,
+                name: c.name,
+                platform: c.platform,
+                identifier: c.identifier ?? c.platform.toLowerCase(),
+              }))}
+              selectedChannelIds={selectedDestIds}
+              onChange={setSelectedDestIds}
+              testIdPrefix="posts-dest"
+            />
+          </div>
+        )}
+
         <div className={styles.filterRow}>
           <div className={styles.search}>
             <span className={styles.searchIcon} aria-hidden>
@@ -788,20 +1024,6 @@ export function Posts() {
               aria-label={t('posts.search')}
             />
           </div>
-
-          <select
-            className={styles.select}
-            value={channelFilter}
-            onChange={(e) => setChannelFilter(e.target.value)}
-            aria-label={t('posts.filterChannel')}
-          >
-            <option value="all">{t('posts.allChannels')}</option>
-            {channels.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} · {c.platform}
-              </option>
-            ))}
-          </select>
 
           <select
             className={styles.select}
@@ -927,26 +1149,99 @@ export function Posts() {
           actionHref="/calendar"
         />
       ) : (
-        <div className={styles.list} role="list">
-          {items.map(({ ev, status }) => (
-            <PostRow
-              key={ev.id}
-              ev={ev}
-              status={status}
-              channel={channelsById.get(ev.channelId)}
-              onOpenEdit={() => void openEventForEdit(ev)}
-              onDuplicate={() => void handleDuplicate(ev.group)}
-              onDuplicateTo={() => setDuplicateTargetGroup(ev.group)}
-              onRequestApproval={() => void handleRequestApproval(ev.id)}
-              onViewDetails={() => setDetailPost({ id: ev.id, status })}
-              initialEvergreen={evergreenGroups.has(ev.group)}
-              evergreenOrgEnabled={evergreenOrgEnabled}
-              onEvergreenOrgDisabledWarning={() =>
-                setToast(t('evergreen.orgDisabledWarning'))
-              }
-            />
-          ))}
-        </div>
+        <>
+          {(visibleDraftItems.length > 0 || selectedDraftIds.size > 0) && (
+            <div
+              data-testid="posts-draft-selection-bar"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                flexWrap: 'wrap',
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                background: 'rgb(var(--tint) / 0.04)',
+                marginBottom: 10,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12.5 }}>
+                <strong>
+                  {selectedDraftIds.size} draft{selectedDraftIds.size === 1 ? '' : 's'} selected
+                </strong>
+                {visibleDraftItems.length > 0 && (
+                  <button
+                    type="button"
+                    className="anext-btn-secondary"
+                    data-testid="posts-select-all-drafts-btn"
+                    style={{ padding: '4px 10px', fontSize: 12 }}
+                    onClick={() =>
+                      setSelectedDraftIds(
+                        new Set(visibleDraftItems.map((it) => it.ev.id)),
+                      )
+                    }
+                  >
+                    Select all visible drafts ({visibleDraftItems.length})
+                  </button>
+                )}
+                {selectedDraftIds.size > 0 && (
+                  <button
+                    type="button"
+                    className="anext-btn-secondary"
+                    style={{ padding: '4px 10px', fontSize: 12 }}
+                    onClick={() => setSelectedDraftIds(new Set())}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="anext-btn-primary"
+                data-testid="posts-schedule-selected-btn"
+                disabled={selectedDraftIds.size === 0 || bulkBusy}
+                onClick={() => void openBulkScheduleReview()}
+              >
+                Schedule selected drafts ({selectedDraftIds.size})
+              </button>
+            </div>
+          )}
+
+          <div className={styles.list} role="list">
+            {items.map(({ ev, status }) => (
+              <PostRow
+                key={ev.id}
+                ev={ev}
+                status={status}
+                channel={channelsById.get(ev.channelId)}
+                selected={selectedDraftIds.has(ev.id)}
+                onToggleSelect={
+                  status === 'draft'
+                    ? () =>
+                        setSelectedDraftIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(ev.id)) next.delete(ev.id);
+                          else next.add(ev.id);
+                          return next;
+                        })
+                    : undefined
+                }
+                onOpenEdit={() => void openEventForEdit(ev)}
+                onDuplicate={() => void handleDuplicate(ev.group)}
+                onDuplicateTo={() => setDuplicateTargetGroup(ev.group)}
+                onRequestApproval={() => void handleRequestApproval(ev.id)}
+                onViewDetails={() => setDetailPost({ id: ev.id, status })}
+                initialEvergreen={evergreenGroups.has(ev.group)}
+                evergreenOrgEnabled={evergreenOrgEnabled}
+                onEvergreenOrgDisabledWarning={() =>
+                  setToast(t('evergreen.orgDisabledWarning'))
+                }
+                onEvergreenError={(msg) => setToast(msg)}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {detailPost && (
@@ -1014,6 +1309,186 @@ export function Posts() {
           onCancel={() => setConfirmDelete(null)}
         />
       )}
+      {bulkReviewOpen && (
+        <div
+          data-testid="posts-bulk-review-modal"
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            background: 'rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 720,
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+              background: 'var(--bg)',
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                  Review &amp; Schedule Selected Drafts ({bulkRows.length})
+                </h2>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  Rechecking exact destinations, planned dates/times, and live 6 Schedule clashes before queueing.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="anext-btn-secondary"
+                disabled={bulkBusy}
+                onClick={() => setBulkReviewOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {bulkRows.map((row) => {
+                const kind =
+                  row.channel?.identifier === 'linkedin'
+                    ? 'Profile'
+                    : row.channel?.identifier === 'linkedin-page'
+                    ? 'Page'
+                    : row.channel?.platform || 'Unknown';
+                return (
+                  <div
+                    key={row.ev.id}
+                    data-testid={`posts-bulk-row-${row.ev.id}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: `1px solid ${
+                        row.status === 'error' || row.missingDest
+                          ? '#dc2626'
+                          : row.clashReason
+                          ? '#d97706'
+                          : row.status === 'success'
+                          ? '#047857'
+                          : 'var(--line-soft)'
+                      }`,
+                      background: 'rgb(var(--tint) / 0.03)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220, flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>
+                        {row.ev.title || 'Untitled draft'}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 11.5, color: 'var(--muted)' }}>
+                        {row.channel ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <PlatformIcon platform={row.channel.platform} size={13} />
+                            <strong>{row.channel.name}</strong>
+                            <span>({kind})</span>
+                          </span>
+                        ) : (
+                          <strong style={{ color: '#dc2626' }}>Missing destination</strong>
+                        )}
+                        <span>·</span>
+                        <strong>{row.ymd} {row.time}</strong>
+                      </div>
+                      {row.clashReason && (
+                        <div style={{ fontSize: 11.5, fontWeight: 600, color: '#b45309' }}>
+                          ⚠ {row.clashReason}
+                        </div>
+                      )}
+                      {row.errorMsg && (
+                        <div style={{ fontSize: 11.5, fontWeight: 600, color: '#dc2626' }}>
+                          ✕ {row.errorMsg}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 999,
+                        background:
+                          row.status === 'success'
+                            ? 'rgba(16, 185, 129, 0.16)'
+                            : row.status === 'error'
+                            ? 'rgba(220, 38, 38, 0.14)'
+                            : 'rgb(var(--tint) / 0.1)',
+                        color:
+                          row.status === 'success'
+                            ? '#047857'
+                            : row.status === 'error'
+                            ? '#dc2626'
+                            : 'var(--fg)',
+                      }}
+                    >
+                      {row.status === 'success'
+                        ? 'Scheduled ✓'
+                        : row.status === 'error'
+                        ? 'Failed'
+                        : 'Ready'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--line-soft)' }}>
+              <button
+                type="button"
+                className="anext-btn-secondary"
+                disabled={bulkBusy}
+                onClick={() => void openBulkScheduleReview()}
+              >
+                Recheck clashes
+              </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {bulkRows.some((r) => r.status === 'error') && (
+                  <button
+                    type="button"
+                    className="anext-btn-primary"
+                    data-testid="posts-bulk-retry-btn"
+                    disabled={bulkBusy}
+                    onClick={() => void runBulkSchedule(true)}
+                  >
+                    Retry failed ({bulkRows.filter((r) => r.status === 'error').length})
+                  </button>
+                )}
+                {bulkRows.some((r) => r.status === 'pending') && (
+                  <button
+                    type="button"
+                    className="anext-btn-primary"
+                    data-testid="posts-bulk-confirm-btn"
+                    disabled={bulkBusy || bulkRows.some((r) => r.missingDest)}
+                    onClick={() => void runBulkSchedule(false)}
+                  >
+                    {bulkBusy
+                      ? 'Scheduling…'
+                      : `Confirm & Schedule (${bulkRows.filter((r) => r.status !== 'success').length})`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1022,6 +1497,8 @@ interface PostRowProps {
   ev: CalendarEvent;
   status: PostStatus;
   channel?: Channel;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   onOpenEdit: () => void;
   onDuplicate: () => void;
   onDuplicateTo: () => void;
@@ -1030,12 +1507,15 @@ interface PostRowProps {
   initialEvergreen?: boolean;
   evergreenOrgEnabled?: boolean;
   onEvergreenOrgDisabledWarning?: () => void;
+  onEvergreenError?: (message: string) => void;
 }
 
 function PostRow({
   ev,
   status,
   channel,
+  selected,
+  onToggleSelect,
   onOpenEdit,
   onDuplicate,
   onDuplicateTo,
@@ -1044,6 +1524,7 @@ function PostRow({
   initialEvergreen,
   evergreenOrgEnabled,
   onEvergreenOrgDisabledWarning,
+  onEvergreenError,
 }: PostRowProps) {
   const date = parseDate(ev.date);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1060,7 +1541,15 @@ function PostRow({
   const onToggleEvergreen = () => {
     const next = !evergreenOn;
     setEvergreenOn(next); // optimistic
-    void toggleEvergreen(ev.group, next).catch(() => setEvergreenOn(!next));
+    void toggleEvergreen(ev.group, next).catch((err) => {
+      console.error('[evergreen-toggle]', err);
+      setEvergreenOn(!next);
+      onEvergreenError?.(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not update evergreen status',
+      );
+    });
     if (next && evergreenOrgEnabled === false)
       onEvergreenOrgDisabledWarning?.();
   };
@@ -1081,6 +1570,17 @@ function PostRow({
       }}
     >
       <div className={styles.statusCell}>
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            data-testid={`draft-select-${ev.id}`}
+            aria-label={`Select draft ${ev.title || ev.id}`}
+            checked={Boolean(selected)}
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => onToggleSelect()}
+            style={{ marginRight: 8, cursor: 'pointer' }}
+          />
+        )}
         <span
           className={
             styles.statusPill +

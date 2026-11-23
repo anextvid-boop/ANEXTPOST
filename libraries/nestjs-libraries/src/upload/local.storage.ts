@@ -1,5 +1,5 @@
 import { IUploadProvider, UploadedFile } from './upload.interface';
-import { mkdirSync, unlink, writeFileSync } from 'fs';
+import { copyFileSync, mkdirSync, unlink, writeFileSync } from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { isSafePublicHttpsUrl } from '@postsider/nestjs-libraries/dtos/webhooks/webhook.url.validator';
@@ -126,6 +126,27 @@ export class LocalStorage implements IUploadProvider {
       console.error('Error uploading file to Local Storage:', err);
       throw err;
     }
+  }
+
+  async uploadFromPath(
+    sourcePath: string,
+    mime: string,
+    ext: string
+  ): Promise<UploadedFile> {
+    if (!ALLOWED_MIME.has(mime)) {
+      throw new Error('Unsupported file type.');
+    }
+    const kind = classifyMime(mime);
+    const { filePath, publicPath } = this.buildPaths(kind, ext);
+    copyFileSync(sourcePath, filePath);
+    const filename = path.basename(filePath);
+    return {
+      filename,
+      path: this.publicUrl(publicPath),
+      mimetype: mime,
+      originalname: filename,
+      kind,
+    };
   }
 
   /**

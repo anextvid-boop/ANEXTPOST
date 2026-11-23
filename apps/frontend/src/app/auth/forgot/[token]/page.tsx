@@ -1,7 +1,7 @@
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 
 export const metadata = {
-  title: "Choose a new password · PostSider",
+  title: "Choose a new password · ANEXTPOST",
 };
 
 // The password-reset email links here: ${FRONTEND_URL}/auth/forgot/<token>.

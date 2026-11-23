@@ -1,7 +1,7 @@
 import { ActivateClient } from "@/components/auth/activate-client";
 
 export const metadata = {
-  title: "Activate account · PostSider",
+  title: "Activate account · ANEXTPOST",
 };
 
 // The activation email links here: ${FRONTEND_URL}/auth/activate/<jwt>.

@@ -23,6 +23,16 @@ export interface IUploadProvider {
   uploadFile(file: Express.Multer.File): Promise<UploadedFile>;
 
   /**
+   * Stream/copy a validated file from a temporary disk path to storage without
+   * buffering the full file in memory.
+   */
+  uploadFromPath?(
+    sourcePath: string,
+    mime: string,
+    ext: string
+  ): Promise<UploadedFile>;
+
+  /**
    * Permanently remove a previously stored file. The argument is whatever the
    * provider returned from `uploadSimple`/`uploadFile.path` (a public URL).
    * Implementations are responsible for translating the URL back to the

@@ -149,11 +149,87 @@ export function isLocalWebhookHost(value: unknown): boolean {
   return /^[0-9.]+$/.test(hostname);
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+/**
+ * Returns true only when local ecosystem webhook delivery is explicitly opted in
+ * via `ALLOW_LOCAL_WEBHOOK_TARGETS=true` (loopback only) or
+ * `WEBHOOK_ALLOWLIST_ORIGINS` (exact origin match). Disabled by default.
+ */
+export function isAllowlistedLocalWebhookUrl(value: unknown): boolean {
+  if (typeof value !== 'string' || !value.trim()) {
+    return false;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return false;
+  }
+
+  const allowlist = (process.env.WEBHOOK_ALLOWLIST_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (allowlist.includes(parsed.origin)) {
+    return true;
+  }
+
+  if (process.env.ALLOW_LOCAL_WEBHOOK_TARGETS === 'true') {
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return LOOPBACK_HOSTS.has(hostname);
+  }
+
+  return false;
+}
+
+@ValidatorConstraint({ name: 'IsWebhookUrlProtocol', async: false })
+export class IsWebhookUrlProtocolConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(value: unknown, _args: ValidationArguments): boolean {
+    if (typeof value !== 'string' || !value.trim() || value.length > 2048) {
+      return false;
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol === 'https:') {
+      return Boolean(parsed.hostname);
+    }
+    return isAllowlistedLocalWebhookUrl(value);
+  }
+
+  defaultMessage(_args: ValidationArguments): string {
+    return 'url must be a valid https URL';
+  }
+}
+
+export function IsWebhookUrlProtocol(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      validator: IsWebhookUrlProtocolConstraint,
+    });
+  };
+}
+
 @ValidatorConstraint({ name: 'IsNotLocalWebhookHost', async: false })
 export class IsNotLocalWebhookHostConstraint
   implements ValidatorConstraintInterface
 {
   validate(value: unknown, _args: ValidationArguments): boolean {
+    if (isAllowlistedLocalWebhookUrl(value)) {
+      return true;
+    }
     return !isLocalWebhookHost(value);
   }
 

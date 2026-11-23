@@ -9,10 +9,78 @@ import { SocialAbstract } from '@postsider/nestjs-libraries/integrations/social.
 import { Integration } from '@prisma/client';
 import { google } from 'googleapis';
 
+function formatBloggerContentHtml(raw: string): string {
+  const formatInline = (text: string) =>
+    text
+      .replace(
+        /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
+      )
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  const blocks = raw.split(/\n/);
+  const out: string[] = [];
+  let inList = false;
+
+  for (const line of blocks) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (inList) {
+        out.push('</ul>');
+        inList = false;
+      }
+      continue;
+    }
+    if (trimmed.startsWith('### ')) {
+      if (inList) {
+        out.push('</ul>');
+        inList = false;
+      }
+      out.push(`<h3>${formatInline(trimmed.slice(4))}</h3>`);
+    } else if (trimmed.startsWith('## ')) {
+      if (inList) {
+        out.push('</ul>');
+        inList = false;
+      }
+      out.push(`<h2>${formatInline(trimmed.slice(3))}</h2>`);
+    } else if (trimmed === '---') {
+      if (inList) {
+        out.push('</ul>');
+        inList = false;
+      }
+      out.push('<hr />');
+    } else if (trimmed.startsWith('> ')) {
+      if (inList) {
+        out.push('</ul>');
+        inList = false;
+      }
+      out.push(`<blockquote>${formatInline(trimmed.slice(2))}</blockquote>`);
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      if (!inList) {
+        out.push('<ul>');
+        inList = true;
+      }
+      out.push(`<li>${formatInline(trimmed.slice(2))}</li>`);
+    } else {
+      if (inList) {
+        out.push('</ul>');
+        inList = false;
+      }
+      out.push(`<p>${formatInline(trimmed)}</p>`);
+    }
+  }
+
+  if (inList) {
+    out.push('</ul>');
+  }
+  return out.join('');
+}
+
 const clientAndBlogger = () => {
   const client = new google.auth.OAuth2({
-    clientId: process.env.YOUTUBE_CLIENT_ID,
-    clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
+    clientId: process.env.GOOGLE_BLOGGER_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID,
+    clientSecret:
+      process.env.GOOGLE_BLOGGER_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET,
     redirectUri: `${process.env.FRONTEND_URL}/integrations/social/blogger`,
   });
 
@@ -171,16 +239,38 @@ export class BloggerProvider extends SocialAbstract implements SocialProvider {
 
     // Split title from body: first line = title, rest = content. A one-line
     // message must NOT fall back to the full message as the body (it would
-    // publish the title twice).
+    // publish the title twice). Also extract optional trailing `Labels: a, b`.
     const lines = firstPost.message.split('\n');
     const title = lines[0]?.trim() || 'Untitled';
-    const content = lines.slice(1).join('\n').trim();
+    const restLines = lines.slice(1);
+    const labels: string[] = [];
+    const bodyLines: string[] = [];
+
+    for (let i = 0; i < restLines.length; i++) {
+      const line = restLines[i];
+      const match =
+        i >= restLines.length - 2
+          ? line.trim().match(/^(?:labels|tags)\s*:\s*(.+)$/i)
+          : null;
+      if (match) {
+        match[1]
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .forEach((lbl) => labels.push(lbl));
+      } else {
+        bodyLines.push(line);
+      }
+    }
+
+    const content = bodyLines.join('\n').trim();
 
     const { data } = await blogger.posts.insert({
       blogId: id,
       requestBody: {
         title,
-        content: `<p>${content.replace(/\n/g, '</p><p>')}</p>`,
+        content: formatBloggerContentHtml(content),
+        ...(labels.length > 0 ? { labels } : {}),
       },
     });
 

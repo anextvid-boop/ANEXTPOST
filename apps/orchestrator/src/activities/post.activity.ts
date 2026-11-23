@@ -268,6 +268,16 @@ export class PostActivity {
           posts
         );
 
+        if (
+          integration.token?.startsWith("offline-") ||
+          integration.internalId?.startsWith("offline-") ||
+          integration.internalId?.startsWith("demo-")
+        ) {
+          throw new PrePublishError(
+            `Offline/demo integration "${integration.name}" cannot publish live.`
+          );
+        }
+
         return getIntegration.comment!(
           integration.internalId,
           postId,
@@ -332,6 +342,16 @@ export class PostActivity {
           integration.organizationId,
           posts
         );
+
+        if (
+          integration.token?.startsWith("offline-") ||
+          integration.internalId?.startsWith("offline-") ||
+          integration.internalId?.startsWith("demo-")
+        ) {
+          throw new PrePublishError(
+            `Offline/demo integration "${integration.name}" cannot publish live.`
+          );
+        }
 
         const postNow = await getIntegration.post(
           integration.internalId,

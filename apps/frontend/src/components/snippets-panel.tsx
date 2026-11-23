@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { InfoTip } from "./info-tip";
 import {
@@ -52,33 +52,64 @@ export function SnippetsPanel({ selectedPlatforms, onInsertText, onApplyUtm, onC
   const [templates, setTemplates] = useState<CaptionTemplate[]>([]);
   const [presets, setPresets] = useState<UtmPreset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [insertedId, setInsertedId] = useState<string | null>(null);
+
+  const loadSnippets = useCallback(async (isAlive?: () => boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [g, t, u] = await Promise.all([
+        getHashtagGroups(),
+        getCaptionTemplates(),
+        getUtmPresets(),
+      ]);
+      if (isAlive && !isAlive()) return;
+      setGroups(g || []);
+      setTemplates(t || []);
+      setPresets(u || []);
+    } catch (err) {
+      if (isAlive && !isAlive()) return;
+      setError(err instanceof Error && err.message ? err.message : "Could not load snippets.");
+    } finally {
+      if (!isAlive || isAlive()) {
+        setLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([getHashtagGroups(), getCaptionTemplates(), getUtmPresets()])
-      .then(([g, t, u]) => {
-        if (!alive) return;
-        setGroups(g || []);
-        setTemplates(t || []);
-        setPresets(u || []);
-      })
-      .catch(() => {})
-      .finally(() => alive && setLoading(false));
+    void loadSnippets(() => alive);
     return () => {
       alive = false;
     };
-  }, []);
+  }, [loadSnippets]);
+
+  const markInserted = (id: string) => {
+    setInsertedId(id);
+    window.setTimeout(() => {
+      setInsertedId((prev) => (prev === id ? null : prev));
+    }, 1200);
+  };
 
   const platformsLower = selectedPlatforms.map((p) => p.toLowerCase());
   const visibleGroups = groups.filter(
     (g) => !g.platform || platformsLower.includes(g.platform.toLowerCase())
   );
 
+  const settingsHref =
+    tab === "templates"
+      ? "/settings/caption-templates"
+      : tab === "utm"
+        ? "/settings/utm-builder"
+        : "/settings/hashtag-groups";
+
   const empty = (label: string) => (
     <div style={{ padding: "20px 4px", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
       {label}
       <div style={{ marginTop: 8 }}>
-        <Link href="/settings/hashtag-groups" style={{ color: "var(--fg)", fontWeight: 600 }}>
+        <Link href={settingsHref} style={{ color: "var(--fg)", fontWeight: 600 }}>
           Manage in Settings
         </Link>
       </div>
@@ -116,13 +147,37 @@ export function SnippetsPanel({ selectedPlatforms, onInsertText, onApplyUtm, onC
       <div style={{ padding: 12, overflowY: "auto" }}>
         {loading ? (
           <div style={{ padding: "20px 0", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>Loading…</div>
+        ) : error ? (
+          <div role="alert" style={{ padding: "16px 8px", textAlign: "center", fontSize: 12 }}>
+            <div style={{ color: "var(--danger-bright, #dc2626)", marginBottom: 8 }}>{error}</div>
+            <button
+              type="button"
+              onClick={() => void loadSnippets()}
+              style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--line-soft)", background: "var(--bg)", color: "var(--fg)", fontSize: 12, cursor: "pointer" }}
+            >
+              Retry
+            </button>
+          </div>
         ) : tab === "hashtags" ? (
           visibleGroups.length === 0 ? (
             empty("No hashtag groups for the selected channels.")
           ) : (
             visibleGroups.map((g) => (
-              <button key={g.id} type="button" style={itemRow} onClick={() => onInsertText(g.hashtags.join(" "))}>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{g.name}</div>
+              <button
+                key={g.id}
+                type="button"
+                style={itemRow}
+                onClick={() => {
+                  onInsertText(g.hashtags.join(" "));
+                  markInserted(`hg-${g.id}`);
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{g.name}</span>
+                  {insertedId === `hg-${g.id}` && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: "#059669" }}>Inserted</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.hashtags.join(" ")}</div>
               </button>
             ))
@@ -132,8 +187,21 @@ export function SnippetsPanel({ selectedPlatforms, onInsertText, onApplyUtm, onC
             empty("No caption templates yet.")
           ) : (
             templates.map((c) => (
-              <button key={c.id} type="button" style={itemRow} onClick={() => onInsertText(c.content)}>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</div>
+              <button
+                key={c.id}
+                type="button"
+                style={itemRow}
+                onClick={() => {
+                  onInsertText(c.content);
+                  markInserted(`tpl-${c.id}`);
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</span>
+                  {insertedId === `tpl-${c.id}` && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: "#059669" }}>Inserted</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.content}</div>
               </button>
             ))
@@ -142,8 +210,21 @@ export function SnippetsPanel({ selectedPlatforms, onInsertText, onApplyUtm, onC
           empty("No UTM presets yet.")
         ) : (
           presets.map((p) => (
-            <button key={p.id} type="button" style={itemRow} onClick={() => onApplyUtm(p)}>
-              <div style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</div>
+            <button
+              key={p.id}
+              type="button"
+              style={itemRow}
+              onClick={() => {
+                onApplyUtm(p);
+                markInserted(`utm-${p.id}`);
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</span>
+                {insertedId === `utm-${p.id}` && (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#059669" }}>Applied</span>
+                )}
+              </div>
               <div style={{ fontSize: 11, color: "var(--muted)" }}>Apply to every URL</div>
             </button>
           ))

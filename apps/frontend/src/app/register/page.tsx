@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { RegisterForm } from "@/components/auth/register-form";
 
 export const metadata = {
-  title: "Create account · PostSider",
+  title: "Create account · ANEXTPOST",
 };
 
 export default function RegisterPage() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import styles from "./day-popup.module.css";
 import { PlatformIcon } from "./platform-icon";
 import { PostMediaThumb } from "./post-media-thumb";
@@ -22,6 +22,10 @@ interface DayPopupProps {
   onClose: () => void;
   onCreate: (date: Date, time: string) => void;
   onEditEvent?: (ev: CalendarEvent) => void;
+  /** Render as a collapsible bottom tray instead of a right-side modal. */
+  trayMode?: boolean;
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 }
 
 const HOUR_HEIGHT = 56;
@@ -45,8 +49,7 @@ function PlusIcon() {
 }
 
 function eventTopAndHeight(time: string, durationMinutes: number) {
-  const [h, m] = time.split(":").map(Number);
-  const minutes = h * 60 + m;
+  const minutes = timeToMinutes(time);
   const top = (minutes / 60) * HOUR_HEIGHT;
   const height = Math.max((durationMinutes / 60) * HOUR_HEIGHT, 28);
   return { top, height };
@@ -91,9 +94,13 @@ export function DayPopup({
   onClose,
   onCreate,
   onEditEvent,
+  trayMode = false,
+  expanded = true,
+  onToggleExpanded,
 }: DayPopupProps) {
   const t = useT();
   useEffect(() => {
+    if (trayMode) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -104,7 +111,7 @@ export function DayPopup({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose]);
+  }, [onClose, trayMode]);
 
   const sortedEvents = useMemo(
     () => [...events].sort((a, b) => a.time.localeCompare(b.time)),
@@ -154,6 +161,29 @@ export function DayPopup({
     [positioned, stack],
   );
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (trayMode) return;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onCloseRef.current();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      if (previousFocus && previousFocus.isConnected) {
+        previousFocus.focus();
+      }
+    };
+  }, [trayMode]);
+
   const extraByHour = stack.extraByHour;
   const timelineHeight = HOUR_HEIGHT * HOURS.length + stack.totalExtra;
 
@@ -162,6 +192,165 @@ export function DayPopup({
   const nowMinutes = today.getHours() * 60 + today.getMinutes();
   const nowTop =
     (nowMinutes / 60) * HOUR_HEIGHT + offsetAtMinute(extraByHour, nowMinutes);
+
+  const timelineEl = (
+    <div
+      className={styles.timeline}
+      style={{ height: timelineHeight }}
+    >
+      {HOURS.map((h) => (
+        <div
+          key={h}
+          className={styles.hourRow}
+          style={{
+            top: h * HOUR_HEIGHT + offsetBeforeHour(extraByHour, h),
+            height: HOUR_HEIGHT + (extraByHour[h] ?? 0),
+          }}
+        >
+          <span className={styles.hourLabel}>
+            {h === 0 ? "" : formatHourLabel(h)}
+          </span>
+          <button
+            type="button"
+            className={styles.hourSlot}
+            onClick={() =>
+              onCreate(date, `${String(h).padStart(2, "0")}:00`)
+            }
+            aria-label={t("calendar.addPostAt", { time: formatHourLabel(h) })}
+          >
+            <span className={styles.plusBubble} aria-hidden>
+              <PlusIcon />
+            </span>
+          </button>
+        </div>
+      ))}
+
+      {showNowLine && (
+        <div
+          className={styles.nowLine}
+          style={{ top: nowTop }}
+          aria-hidden
+        />
+      )}
+
+      {/* Events live in their own layer, inset past the hour labels, so
+          lane percentages are of the card area — the old
+          `calc(50% - 72px)` on the full width went NEGATIVE at four
+          lanes and the cards vanished. */}
+      <div className={styles.eventLayer} ref={layerRef}>
+        {sortedEvents.map((ev) => {
+          const natural = eventTopAndHeight(
+            ev.time,
+            ev.durationMinutes ?? DEFAULT_DURATION,
+          );
+          const slot = stack.placements.get(ev.id);
+          const top = slot ? slot.top : natural.top;
+          const height = slot ? slot.height : natural.height;
+          const c = channelsById.get(ev.channelId);
+          const placement = slot?.stacked ? undefined : lanes.get(ev.id);
+          return (
+            <button
+              type="button"
+              key={ev.id}
+              className={styles.event}
+              style={{
+                top,
+                height,
+                borderLeft: c
+                  ? `3px solid ${c.color}`
+                  : "3px solid var(--fg)",
+                ...(placement
+                  ? {
+                      left: `${placement.leftPct}%`,
+                      width: `calc(${placement.widthPct}% - 6px)`,
+                    }
+                  : {}),
+              }}
+              onClick={() => onEditEvent?.(ev)}
+            >
+              {/* Renders nothing when the post has no media. */}
+              <PostMediaThumb media={ev.media} size={24} />
+              <div className={styles.eventBody}>
+                <div className={styles.eventHead}>
+                  {c ? (
+                    <PlatformIcon platform={c.platform} size={18} />
+                  ) : (
+                    <span className={styles.eventBadge} aria-hidden>?</span>
+                  )}
+                  <span className={styles.eventTitle}>{ev.title}</span>
+                </div>
+                <span className={styles.eventMeta}>
+                  {ev.time}
+                  {c ? ` · ${c.name}` : ""}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  if (trayMode) {
+    const countLabel =
+      sortedEvents.length === 0
+        ? t("calendar.noPostsScheduled")
+        : t("calendar.postsScheduled", { count: sortedEvents.length });
+
+    return (
+      <section
+        className={styles.tray}
+        aria-label={t("calendar.scheduleFor", { date: formatHeaderDate(date) })}
+      >
+        <div className={styles.trayBar}>
+          <button
+            type="button"
+            className={styles.trayToggle}
+            aria-expanded={expanded}
+            aria-controls="day-agenda-tray-body"
+            onClick={onToggleExpanded}
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+              width="14"
+              height="14"
+              style={{
+                transform: expanded ? "rotate(180deg)" : undefined,
+                transition: "transform 150ms var(--ease)",
+                flexShrink: 0,
+              }}
+            >
+              <path
+                d="M4 9.5 8 5.5 12 9.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className={styles.trayDate}>{formatHeaderDate(date)}</span>
+            <span className={styles.trayCount}>· {countLabel}</span>
+          </button>
+          <div className={styles.trayActions}>
+            <button
+              type="button"
+              className={styles.trayNewBtn}
+              onClick={() => onCreate(date, "09:00")}
+            >
+              + {t("posts.newPost")}
+            </button>
+          </div>
+        </div>
+        {expanded && (
+          <div id="day-agenda-tray-body" className={styles.trayBody}>
+            {timelineEl}
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div
@@ -210,101 +399,7 @@ export function DayPopup({
         </header>
 
         <div className={styles.body}>
-          <div
-            className={styles.timeline}
-            style={{ height: timelineHeight }}
-          >
-            {HOURS.map((h) => (
-              <div
-                key={h}
-                className={styles.hourRow}
-                style={{
-                  top: h * HOUR_HEIGHT + offsetBeforeHour(extraByHour, h),
-                  height: HOUR_HEIGHT + (extraByHour[h] ?? 0),
-                }}
-              >
-                <span className={styles.hourLabel}>
-                  {h === 0 ? "" : formatHourLabel(h)}
-                </span>
-                <button
-                  type="button"
-                  className={styles.hourSlot}
-                  onClick={() =>
-                    onCreate(date, `${String(h).padStart(2, "0")}:00`)
-                  }
-                  aria-label={t("calendar.addPostAt", { time: formatHourLabel(h) })}
-                >
-                  <span className={styles.plusBubble} aria-hidden>
-                    <PlusIcon />
-                  </span>
-                </button>
-              </div>
-            ))}
-
-            {showNowLine && (
-              <div
-                className={styles.nowLine}
-                style={{ top: nowTop }}
-                aria-hidden
-              />
-            )}
-
-            {/* Events live in their own layer, inset past the hour labels, so
-                lane percentages are of the card area — the old
-                `calc(50% - 72px)` on the full width went NEGATIVE at four
-                lanes and the cards vanished. */}
-            <div className={styles.eventLayer} ref={layerRef}>
-              {sortedEvents.map((ev) => {
-                const natural = eventTopAndHeight(
-                  ev.time,
-                  ev.durationMinutes ?? DEFAULT_DURATION,
-                );
-                const slot = stack.placements.get(ev.id);
-                const top = slot ? slot.top : natural.top;
-                const height = slot ? slot.height : natural.height;
-                const c = channelsById.get(ev.channelId);
-                const placement = slot?.stacked ? undefined : lanes.get(ev.id);
-                return (
-                  <button
-                    type="button"
-                    key={ev.id}
-                    className={styles.event}
-                    style={{
-                      top,
-                      height,
-                      borderLeft: c
-                        ? `3px solid ${c.color}`
-                        : "3px solid var(--fg)",
-                      ...(placement
-                        ? {
-                            left: `${placement.leftPct}%`,
-                            width: `calc(${placement.widthPct}% - 6px)`,
-                          }
-                        : {}),
-                    }}
-                    onClick={() => onEditEvent?.(ev)}
-                  >
-                    {/* Renders nothing when the post has no media. */}
-                    <PostMediaThumb media={ev.media} size={24} />
-                    <div className={styles.eventBody}>
-                      <div className={styles.eventHead}>
-                        {c ? (
-                          <PlatformIcon platform={c.platform} size={18} />
-                        ) : (
-                          <span className={styles.eventBadge} aria-hidden>?</span>
-                        )}
-                        <span className={styles.eventTitle}>{ev.title}</span>
-                      </div>
-                      <span className={styles.eventMeta}>
-                        {ev.time}
-                        {c ? ` · ${c.name}` : ""}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {timelineEl}
         </div>
       </div>
     </div>

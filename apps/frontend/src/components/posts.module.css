@@ -47,50 +47,72 @@
 }
 
 .newBtn {
-  height: 32px;
-  padding: 0 16px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--fg);
-  background: var(--fg);
-  color: var(--bg);
+  height: var(--ctrl-height);
+  padding: 0 var(--ctrl-pad-x);
+  border-radius: var(--ctrl-radius);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--ctrl-bevel-primary);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: opacity 140ms var(--ease), transform 120ms var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
+    transform 120ms var(--ease);
 }
 
 .newBtn:hover {
-  opacity: 0.86;
-  background: var(--fg);
-  color: var(--bg);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.newBtn:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
 }
 
 .newBtn:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
-/* Ghost sibling of .newBtn: same pill geometry, outlined instead of filled. */
+/* Outlined sibling of .newBtn. */
 .importBtn {
-  height: 32px;
-  padding: 0 16px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--line-soft);
-  background: var(--bg);
+  height: var(--ctrl-height);
+  padding: 0 var(--ctrl-pad-x);
+  border-radius: var(--ctrl-radius);
+  border: var(--ctrl-border);
+  background: var(--ctrl-surface);
   color: var(--fg);
+  box-shadow: var(--ctrl-bevel);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: border-color 140ms var(--ease), transform 120ms var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
+    transform 120ms var(--ease);
 }
 
 .importBtn:hover {
-  border-color: var(--fg);
+  background: var(--hover-strong);
+  border-color: var(--line);
+}
+
+.importBtn:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
 }
 
 .importBtn:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 /* Filter row */
@@ -133,6 +155,16 @@
 
 .tabs::-webkit-scrollbar {
   display: none;
+}
+
+@media (max-width: 960px) {
+  .tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    border-radius: var(--radius-md);
+    gap: 4px;
+    padding: 4px;
+  }
 }
 
 .tab {

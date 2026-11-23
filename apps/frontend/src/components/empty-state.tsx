@@ -105,18 +105,8 @@ export function EmptyState({
       {actionLabel && onAction && (
         <button
           type="button"
+          className="anext-btn-primary"
           onClick={onAction}
-          style={{
-            display: "inline-block",
-            padding: "10px 20px",
-            background: "var(--fg)",
-            color: "var(--bg)",
-            border: "none",
-            borderRadius: "var(--radius-md)",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
         >
           {actionLabel}
         </button>
@@ -124,16 +114,7 @@ export function EmptyState({
       {actionLabel && actionHref && !onAction && (
         <Link
           href={actionHref}
-          style={{
-            display: "inline-block",
-            padding: "10px 20px",
-            background: "var(--fg)",
-            color: "var(--bg)",
-            borderRadius: "var(--radius-md)",
-            fontSize: 14,
-            fontWeight: 600,
-            textDecoration: "none",
-          }}
+          className="anext-btn-primary"
         >
           {actionLabel}
         </Link>

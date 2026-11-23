@@ -9,6 +9,9 @@ export const CsvRowSchema = z.object({
   datetime: z.string().trim().optional().default(''),
   first_comment: z.string().optional().default(''),
   thread: z.string().optional().default(''),
+  media_path: z.string().optional().default(''),
+  batch_label: z.string().trim().optional().default(''),
+  batch_color: z.string().trim().optional().default(''),
 });
 
 export type CsvRowInput = z.infer<typeof CsvRowSchema>;

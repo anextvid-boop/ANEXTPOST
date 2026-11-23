@@ -25,6 +25,16 @@ export class SafeMediaPathConstraint implements ValidatorConstraintInterface {
       return true;
     }
 
+    const localUploadBases = [
+      process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY,
+      process.env.BACKEND_URL
+        ? `${process.env.BACKEND_URL.replace(/\/$/, '')}/uploads/`
+        : undefined,
+    ].filter((b): b is string => Boolean(b));
+    if (localUploadBases.some((base) => value.startsWith(base))) {
+      return true;
+    }
+
     return isSafePublicHttpsUrl(value);
   }
 

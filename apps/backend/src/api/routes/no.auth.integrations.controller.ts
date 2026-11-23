@@ -452,7 +452,17 @@ export class NoAuthIntegrationsController {
 
     const org = (await this._organizationService.getOrgById(organization))!;
 
-    return this._integrationService.saveProviderPage(org.id, id, body);
+    const activeChannelLimit = isBillingEnabled()
+      ? (await this._permissionsService.getPackageOptions(org.id)).subscription
+          ?.totalChannels || 0
+      : undefined;
+
+    return this._integrationService.saveProviderPage(
+      org.id,
+      id,
+      body,
+      activeChannelLimit
+    );
   }
 
   @Post('/extension-refresh')

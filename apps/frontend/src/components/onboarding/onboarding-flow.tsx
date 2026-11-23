@@ -12,6 +12,16 @@ import {
 } from "@/lib/onboarding-progress";
 import { AgentOnboarding } from "./agent-onboarding";
 import { recordClientFunnelStage } from "@/lib/funnel-analytics";
+import { useChannels } from "@/lib/use-channels";
+import { AddChannelModal } from "../add-channel-modal";
+import {
+  ConnectFlowExtraModals,
+  iconKeyForProvider,
+  kindBadgeForProvider,
+  useConnectAccountFlow,
+} from "../brand-connections-menu";
+import { PlatformIcon } from "../platform-icon";
+import { ProviderCredentialsModal } from "../provider-credentials-modal";
 import styles from "./onboarding.module.css";
 
 type Step = "choice" | "welcome" | "connect" | "agent";
@@ -27,6 +37,18 @@ export function OnboardingFlow() {
   const { user } = useAuth();
   const t = useT();
   const [step, setStep] = useState<Step>("choice");
+  const { channels, refresh } = useChannels();
+  const connectFlow = useConnectAccountFlow({ onConnected: refresh });
+  const {
+    addOpen,
+    setAddOpen,
+    connectError,
+    setConnectError,
+    unconfiguredProvider,
+    credsModalOpen,
+    setCredsModalOpen,
+    startPick,
+  } = connectFlow;
 
   // The calendar offers a resume link after an agent user leaves this page to
   // connect a social provider. Do not auto-resume after onboarding completed.
@@ -172,15 +194,124 @@ export function OnboardingFlow() {
           <div className={styles.stepContent}>
             <h1 className={styles.title}>{t("onboarding.connectTitle")}</h1>
             <p className={styles.subtitle}>{t("onboarding.connectDesc")}</p>
-            <button type="button" className={styles.primaryButton} onClick={connectSocial}>
-              {t("onboarding.connectCta")}
+
+            {connectError && (
+              <div
+                role="alert"
+                data-testid="onboarding-connect-error"
+                style={{
+                  fontSize: 12.5,
+                  lineHeight: 1.5,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  backgroundColor: "var(--bg)",
+                  color: "var(--warning, #d97706)",
+                  marginBottom: 14,
+                  textAlign: "left",
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                <span>{connectError}</span>
+                {unconfiguredProvider && (
+                  <button
+                    type="button"
+                    data-testid="onboarding-configure-keys-btn"
+                    onClick={() => setCredsModalOpen(true)}
+                    style={{
+                      alignSelf: "flex-start",
+                      height: 30,
+                      padding: "0 12px",
+                      borderRadius: 6,
+                      border: "1px solid var(--line)",
+                      backgroundColor: "var(--page)",
+                      color: "var(--fg)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Configure API Keys
+                  </button>
+                )}
+              </div>
+            )}
+
+            {channels.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, textAlign: "left" }}>
+                {channels.map((ch) => {
+                  const ident = ch.identifier ?? "";
+                  const kind = kindBadgeForProvider(ident);
+                  return (
+                    <div
+                      key={ch.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "1px solid var(--line-soft)",
+                      }}
+                    >
+                      <PlatformIcon platform={iconKeyForProvider(ident, ch.platform)} size={20} />
+                      <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{ch.name}</span>
+                      {kind && (
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>{kind}</span>
+                      )}
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--success, #16a34a)" }}>
+                        {ch.refreshNeeded ? "Reconnect" : "Connected"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              type="button"
+              data-testid="onboarding-connect-btn"
+              className={styles.primaryButton}
+              onClick={() => {
+                setConnectError(null);
+                setAddOpen(true);
+              }}
+            >
+              Connect an account
             </button>
             <button type="button" className={styles.skipButton} onClick={finish}>
-              {t("onboarding.skipLater")}
+              {channels.length > 0 ? "Continue to Schedule" : t("onboarding.skipLater")}
             </button>
             <button type="button" className={styles.backButton} onClick={() => setStep("welcome")}>
               {t("developerOnboarding.chooseBack")}
             </button>
+
+            {addOpen && (
+              <AddChannelModal
+                onClose={() => setAddOpen(false)}
+                onPick={(id, label) => {
+                  void startPick(id, label);
+                }}
+              />
+            )}
+
+            {credsModalOpen && unconfiguredProvider && (
+              <ProviderCredentialsModal
+                providerId={unconfiguredProvider.id}
+                label={unconfiguredProvider.label}
+                onClose={() => setCredsModalOpen(false)}
+                onSavedAndConnect={(id, label) => {
+                  setCredsModalOpen(false);
+                  void startPick(id, label);
+                }}
+              />
+            )}
+
+            <ConnectFlowExtraModals flow={connectFlow} />
           </div>
         )}
 

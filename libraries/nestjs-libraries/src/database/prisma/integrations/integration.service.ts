@@ -523,7 +523,12 @@ export class IntegrationService {
     return this._integrationRepository.checkForDeletedOnceAndUpdate(org, page);
   }
 
-  async saveProviderPage(org: string, id: string, data: any) {
+  async saveProviderPage(
+    org: string,
+    id: string,
+    data: any,
+    activeChannelLimit?: number
+  ) {
     const getIntegration = await this._integrationRepository.getIntegrationById(
       org,
       id
@@ -551,9 +556,22 @@ export class IntegrationService {
       );
     }
 
+    const requestedPages: string[] = Array.isArray(data?.pages)
+      ? Array.from(
+          new Set(
+            data.pages
+              .map((p: unknown) => String(p ?? '').trim())
+              .filter(Boolean)
+          )
+        )
+      : [];
+
+    const firstPageData =
+      requestedPages.length > 0 ? { ...data, page: requestedPages[0] } : data;
+
     const getIntegrationInformation = await provider.fetchPageInformation(
       getIntegration.token,
-      data
+      firstPageData
     );
 
     // A provider's fetchPageInformation can come back without a resolvable
@@ -591,7 +609,182 @@ export class IntegrationService {
       );
     }
 
+    if (requestedPages.length > 1) {
+      await this.attachPagesFromToken(
+        org,
+        getIntegration,
+        provider,
+        requestedPages.slice(1),
+        activeChannelLimit
+      );
+      return { success: true, count: requestedPages.length };
+    }
+
     return { success: true };
+  }
+
+  private async attachPagesFromToken(
+    org: string,
+    source: {
+      providerIdentifier: string;
+      token: string;
+      refreshToken: string | null;
+      tokenExpiration: Date | null;
+    },
+    provider: any,
+    pageIds: string[],
+    activeChannelLimit?: number
+  ) {
+    const expiresIn = source.tokenExpiration
+      ? Math.max(
+          60,
+          Math.floor((source.tokenExpiration.getTime() - Date.now()) / 1000)
+        )
+      : undefined;
+
+    const lookupToken = this.resolvePagesLookupToken(source);
+    let attached = 0;
+    for (const pageId of pageIds) {
+      const info = await provider.fetchPageInformation(lookupToken, {
+        page: pageId,
+      });
+      if (!info?.id) continue;
+
+      const created = await this.createOrUpdateIntegration(
+        [],
+        !!provider.oneTimeToken,
+        org,
+        info.name || info.username || String(info.id),
+        info.picture || '',
+        'social',
+        String(info.id),
+        source.providerIdentifier,
+        info.access_token || source.token,
+        source.refreshToken || '',
+        expiresIn,
+        info.username,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        activeChannelLimit,
+        true
+      );
+      this._refreshIntegrationService
+        .startRefreshWorkflow(org, created.id, !!created.refreshToken)
+        .catch((err) => console.log(err));
+      attached += 1;
+    }
+    return attached;
+  }
+
+  private resolvePagesLookupToken(integration: {
+    providerIdentifier: string;
+    token: string;
+    refreshToken?: string | null;
+  }): string {
+    // Facebook stores a Page Access Token in `token` and the User Access Token
+    // in `refreshToken`; /me/accounts requires the User Access Token.
+    if (integration.providerIdentifier === 'facebook') {
+      return integration.refreshToken || integration.token;
+    }
+    // Instagram expects `${accessToken}___${userToken}` where both parts carry
+    // the User Access Token during page discovery/attachment.
+    if (integration.providerIdentifier === 'instagram') {
+      const tokenParts = (integration.token || '').split('___');
+      const userToken =
+        integration.refreshToken ||
+        (tokenParts.length > 1 ? tokenParts[1] : tokenParts[0]) ||
+        integration.token;
+      return `${userToken}___${userToken}`;
+    }
+    return integration.token;
+  }
+
+  async getAvailablePages(org: string, id: string) {
+    const integration = await this._integrationRepository.getIntegrationById(
+      org,
+      id
+    );
+    if (!integration || integration.deletedAt || integration.disabled) {
+      throw new HttpException('Integration not found', HttpStatus.NOT_FOUND);
+    }
+    if (integration.refreshNeeded) {
+      throw new HttpException(
+        'Channel needs reconnection before syncing pages',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    const provider: any = this._integrationManager.getSocialIntegration(
+      integration.providerIdentifier
+    );
+    const fetchMethod =
+      'pages' in provider
+        ? 'pages'
+        : 'companies' in provider
+        ? 'companies'
+        : null;
+    if (!fetchMethod) {
+      throw new HttpException(
+        'Provider does not support multiple pages',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    const [pages, existing] = await Promise.all([
+      provider[fetchMethod](this.resolvePagesLookupToken(integration)),
+      this.getIntegrationsList(org),
+    ]);
+    const connectedInternalIds = existing
+      .filter((e) => e.providerIdentifier === integration.providerIdentifier)
+      .map((e) => String(e.internalId));
+    return {
+      pages: Array.isArray(pages) ? pages : [],
+      connectedInternalIds,
+    };
+  }
+
+  async attachAdditionalPages(
+    org: string,
+    id: string,
+    pageIds: string[],
+    activeChannelLimit?: number
+  ) {
+    const integration = await this._integrationRepository.getIntegrationById(
+      org,
+      id
+    );
+    if (!integration || integration.deletedAt || integration.disabled) {
+      throw new HttpException('Integration not found', HttpStatus.NOT_FOUND);
+    }
+    if (integration.refreshNeeded) {
+      throw new HttpException(
+        'Channel needs reconnection before attaching pages',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    const provider: any = this._integrationManager.getSocialIntegration(
+      integration.providerIdentifier
+    );
+    if (!provider.fetchPageInformation) {
+      throw new HttpException(
+        'Provider does not support page selection',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    const uniqueIds = Array.from(
+      new Set(pageIds.map((p) => String(p ?? '').trim()).filter(Boolean))
+    );
+    if (uniqueIds.length === 0) {
+      throw new HttpException('No pages selected', HttpStatus.BAD_REQUEST);
+    }
+    const attached = await this.attachPagesFromToken(
+      org,
+      integration,
+      provider,
+      uniqueIds,
+      activeChannelLimit
+    );
+    return { success: true, count: attached };
   }
 
   async checkAnalytics(

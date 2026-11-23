@@ -93,6 +93,11 @@ export class UsersController {
       trialDaysLeft,
       streakSince: organization?.streakSince || null,
       orgLogo: organization?.logo || null,
+      orgName: organization?.name || '',
+      projectType: organization?.projectType || null,
+      brandHandle: organization?.brandHandle || null,
+      brandWebsite: organization?.brandWebsite || null,
+      brandEmail: organization?.brandEmail || null,
       // @ts-ignore
       agencyMode: organization?.agencyMode ?? false,
       // @ts-ignore
@@ -322,16 +327,30 @@ export class UsersController {
   @Post('/organizations')
   async createOrg(
     @GetUserFromRequest() user: User,
-    @Body('name') name: string
+    @Body()
+    body: {
+      name: string;
+      projectType?: string;
+      brandHandle?: string;
+      brandWebsite?: string;
+      brandEmail?: string;
+    }
   ) {
-    const trimmed = (name || '').trim();
+    const trimmed = (body?.name || '').trim();
     if (!trimmed) {
       throw new BadRequestException('Organization name is required');
     }
+    const clean = (val?: string) => (val && val.trim() ? val.trim() : null);
     return this._orgService.createOrgForCurrentUser(
       user.id,
       user.email,
-      trimmed
+      trimmed,
+      {
+        projectType: clean(body?.projectType),
+        brandHandle: clean(body?.brandHandle),
+        brandWebsite: clean(body?.brandWebsite),
+        brandEmail: clean(body?.brandEmail),
+      }
     );
   }
 

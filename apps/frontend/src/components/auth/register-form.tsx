@@ -176,11 +176,7 @@ export function RegisterForm() {
           Your 7-day trial starts without a charge; choose a paid plan later.
         </div>
       )}
-      <GoogleButton label={t("auth.googleSignUp")} />
-
-      <div className={styles.divider}>
-        <span>{t("common.or")}</span>
-      </div>
+      <GoogleButton label={t("auth.googleSignUp")} dividerLabel={t("common.or")} />
 
       <form className={styles.form} onSubmit={onSubmit}>
         <div className={styles.field}>

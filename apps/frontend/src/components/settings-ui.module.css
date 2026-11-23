@@ -204,6 +204,11 @@
   flex-shrink: 0;
 }
 
+.switch:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
+}
+
 .switchKnob {
   position: absolute;
   top: 2px;
@@ -217,54 +222,28 @@
 }
 
 .switchOn {
-  background: var(--fg);
+  background: var(--accent);
 }
 
 .switchOn .switchKnob {
+  background: var(--accent-fg);
   transform: translateX(16px);
 }
 
 /* Buttons */
 .btnPrimary {
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--fg);
-  background: var(--fg);
-  color: var(--bg);
+  height: var(--ctrl-height);
+  padding: 0 var(--ctrl-pad-x);
+  border-radius: var(--ctrl-radius);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--ctrl-bevel-primary);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: opacity 140ms var(--ease), transform 120ms var(--ease);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.btnPrimary:hover {
-  opacity: 0.86;
-  background: var(--fg);
-  color: var(--bg);
-}
-
-.btnPrimary:active {
-  transform: scale(0.97);
-}
-
-.btnSecondary {
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--fg);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  cursor: pointer;
-  transition: background 140ms var(--ease), color 140ms var(--ease),
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
     transform 120ms var(--ease);
   display: inline-flex;
   align-items: center;
@@ -272,13 +251,57 @@
   gap: 6px;
 }
 
-.btnSecondary:hover {
-  background: var(--fg);
-  color: var(--bg);
+.btnPrimary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
-.btnSecondary:active {
-  transform: scale(0.97);
+.btnPrimary:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
+}
+
+.btnPrimary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  height: var(--ctrl-height);
+  padding: 0 var(--ctrl-pad-x);
+  border-radius: var(--ctrl-radius);
+  border: var(--ctrl-border);
+  background: var(--ctrl-surface);
+  color: var(--fg);
+  box-shadow: var(--ctrl-bevel);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease),
+    transform 120ms var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btnSecondary:hover:not(:disabled) {
+  background: var(--hover-strong);
+  border-color: var(--line);
+}
+
+.btnSecondary:focus-visible {
+  outline: var(--ctrl-focus-ring);
+  outline-offset: 2px;
+}
+
+.btnSecondary:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .btnGhost {

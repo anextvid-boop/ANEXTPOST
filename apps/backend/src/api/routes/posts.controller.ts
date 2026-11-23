@@ -135,6 +135,9 @@ export class PostsController {
 
   @Post('/should-shortlink')
   async shouldShortlink(@Body() body: { messages: string[] }) {
+    if (!body || !Array.isArray(body.messages)) {
+      throw new BadRequestException('messages must be an array');
+    }
     return { ask: this._shortLinkService.askShortLinkedin(body.messages) };
   }
 
@@ -145,6 +148,9 @@ export class PostsController {
     @Param('id') id: string,
     @Body() body: { comment: string }
   ) {
+    if (!body || typeof body.comment !== 'string' || !body.comment.trim()) {
+      throw new BadRequestException('comment is required');
+    }
     return this._postsService.createComment(org.id, user.id, id, body.comment);
   }
 
@@ -280,7 +286,10 @@ export class PostsController {
     // Opt-in: import as DRAFT instead of straight to QUEUE, so a batch can go
     // through the (still fully optional) approval flow instead of publishing
     // unreviewed. Off by default — unchanged behavior for existing callers.
-    @Body('asDraft') asDraft?: string
+    @Body('asDraft') asDraft?: string,
+    @Body('mediaMap') mediaMapRaw?: string,
+    @Body('retryRows') retryRowsRaw?: string,
+    @Body('batchId') batchId?: string
   ) {
     if (!file?.buffer) {
       throw new BadRequestException('No file uploaded.');
@@ -295,7 +304,63 @@ export class PostsController {
     if ((file.size ?? 0) > CSV_UPLOAD_MAX_FILE_BYTES) {
       throw new BadRequestException('CSV exceeds the 2 MB limit.');
     }
-    return this._csvImport.importCSV(org.id, file.buffer, asDraft === 'true');
+
+    let mediaMap: Record<number, { id: string; path: string }[]> | undefined;
+    if (mediaMapRaw) {
+      try {
+        const parsed = JSON.parse(mediaMapRaw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('mediaMap must be an object');
+        }
+        mediaMap = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          const rowNum = Number(k);
+          if (!Number.isInteger(rowNum) || rowNum < 2 || !Array.isArray(v)) {
+            throw new Error(`Invalid mediaMap entry for row ${k}`);
+          }
+          mediaMap[rowNum] = v.map((item: any) => {
+            if (!item || typeof item.id !== 'string' || typeof item.path !== 'string') {
+              throw new Error(`Invalid media reference for row ${k}`);
+            }
+            return { id: item.id, path: item.path };
+          });
+        }
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Invalid mediaMap payload.'
+        );
+      }
+    }
+
+    let retryRows: number[] | undefined;
+    if (retryRowsRaw) {
+      try {
+        const parsed = JSON.parse(retryRowsRaw);
+        if (!Array.isArray(parsed)) {
+          throw new Error('retryRows must be an array');
+        }
+        retryRows = parsed.map((n: unknown) => {
+          const num = Number(n);
+          if (!Number.isInteger(num) || num < 2) {
+            throw new Error(`Invalid retry row number: ${String(n)}`);
+          }
+          return num;
+        });
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Invalid retryRows payload.'
+        );
+      }
+    }
+
+    return this._csvImport.importCSV(
+      org.id,
+      file.buffer,
+      asDraft === 'true',
+      mediaMap,
+      retryRows,
+      batchId?.trim() || undefined
+    );
   }
 
   @Get('/comment-providers')
@@ -313,6 +378,9 @@ export class PostsController {
     @GetOrgFromRequest() org: Organization,
     @Body() rawBody: any
   ) {
+    if (rawBody?.posts !== undefined && !Array.isArray(rawBody.posts)) {
+      throw new BadRequestException('posts must be an array');
+    }
     return this._postsService.validatePosts(
       org.id,
       rawBody?.posts || [],
@@ -327,6 +395,9 @@ export class PostsController {
     @GetUserFromRequest() user: User,
     @Body() rawBody: any
   ) {
+    if (rawBody?.posts !== undefined && !Array.isArray(rawBody.posts)) {
+      throw new BadRequestException('posts must be an array');
+    }
     // Server-side validation — never trust the client to have validated.
     const validation = await this._postsService.validatePosts(
       org.id,
@@ -412,6 +483,12 @@ export class PostsController {
     @Body('date') date: string,
     @Body('action') action: 'schedule' | 'update' = 'schedule'
   ) {
+    if (!date || typeof date !== 'string' || Number.isNaN(Date.parse(date))) {
+      throw new BadRequestException('Valid date is required');
+    }
+    if (action !== 'schedule' && action !== 'update') {
+      throw new BadRequestException('action must be schedule or update');
+    }
     // Only a schedule move is evaluated, against the NEW date. A date-only
     // update never changes the state, so it is not gated.
     if (this._gate && action === 'schedule') {
@@ -438,8 +515,8 @@ export class PostsController {
   async duplicatePost(
     @GetOrgFromRequest() org: Organization,
     @Param('group') group: string,
-    @Body() body: { targetIntegrationId?: string; date?: string },
+    @Body() body?: { targetIntegrationId?: string; date?: string },
   ) {
-    return this._postsService.duplicatePost(org.id, group, body.targetIntegrationId, body.date);
+    return this._postsService.duplicatePost(org.id, group, body?.targetIntegrationId, body?.date);
   }
 }

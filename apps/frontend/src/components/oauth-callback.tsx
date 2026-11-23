@@ -55,6 +55,7 @@ export function OauthCallback({ provider }: Props) {
     "Finishing the connection with your account…",
   );
   const [pages, setPages] = useState<ConnectPage[]>([]);
+  const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
   const [brokenPics, setBrokenPics] = useState<Record<string, boolean>>({});
   const [integrationId, setIntegrationId] = useState<string>("");
   const [savingPage, setSavingPage] = useState(false);
@@ -67,6 +68,37 @@ export function OauthCallback({ provider }: Props) {
     // OAuth 2.0 / custom flows return ?code=&state=. OAuth 1.0a providers
     // (e.g. X/Twitter) return ?oauth_token=&oauth_verifier= instead — map
     // them so the backend authenticate() gets code=verifier, state=token.
+    const denied = search.get("denied");
+    const oauthError = search.get("error");
+    const oauthErrorDesc =
+      search.get("error_description") ?? search.get("error_reason");
+
+    if (denied || oauthError === "access_denied" || oauthError === "user_denied") {
+      setStatus("error");
+      setMessage(
+        "Authorization was cancelled before completing. Click Try Again to reconnect when ready.",
+      );
+      return;
+    }
+
+    if (oauthError === "unauthorized_scope_error" || oauthError === "invalid_scope") {
+      setStatus("error");
+      setMessage(
+        oauthErrorDesc ||
+          "The provider app does not have the required permissions/scopes enabled for this connection.",
+      );
+      return;
+    }
+
+    if (oauthError) {
+      setStatus("error");
+      setMessage(
+        oauthErrorDesc ||
+          `Provider returned an authentication error (${oauthError}). Try again.`,
+      );
+      return;
+    }
+
     const code = search.get("code") ?? search.get("oauth_verifier");
     const state = search.get("state") ?? search.get("oauth_token");
     const refresh = search.get("refresh") || undefined;
@@ -88,12 +120,17 @@ export function OauthCallback({ provider }: Props) {
           return;
         }
 
-        // Two-step provider (e.g. LinkedIn Page): user must pick a page.
+        // Two-step provider (e.g. LinkedIn Page): user must pick one or more pages.
         if (res.inBetweenSteps && res.pages && res.pages.length > 0) {
           setIntegrationId(res.id);
           setPages(res.pages);
+          setSelectedPages(new Set(res.pages.map((p) => p.page || p.id)));
           setStatus("pick-page");
-          setMessage("Choose which page to connect.");
+          setMessage(
+            res.pages.length > 1
+              ? "Select one or more pages to connect in this workspace."
+              : "Choose which page to connect."
+          );
           return;
         }
 
@@ -148,6 +185,39 @@ export function OauthCallback({ provider }: Props) {
     }
   };
 
+  const handleConnectSelectedPages = async () => {
+    if (savingPage || selectedPages.size === 0) return;
+    setSavingPage(true);
+    const chosen = Array.from(selectedPages);
+    setMessage(`Connecting ${chosen.length} page${chosen.length === 1 ? "" : "s"}…`);
+    const state = search.get("state") || undefined;
+    try {
+      const res = await saveProviderPage(integrationId, {
+        pages: chosen,
+        state,
+      });
+      if (res?.success) {
+        setStatus("ok");
+        setMessage(
+          `${chosen.length} page${chosen.length === 1 ? "" : "s"} connected. Taking you back…`
+        );
+        setTimeout(() => router.replace("/calendar"), 600);
+      } else {
+        setStatus("error");
+        setMessage("Could not connect the selected pages. Try again.");
+      }
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : "Could not connect the selected pages. Try again.";
+      setStatus("error");
+      setMessage(msg);
+    } finally {
+      setSavingPage(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -174,7 +244,8 @@ export function OauthCallback({ provider }: Props) {
           {status === "working" && "Connecting"}
           {status === "ok" && "Connected"}
           {status === "error" && "Connection failed"}
-          {status === "pick-page" && "Choose a page"}
+          {status === "pick-page" &&
+            (pages.length > 1 ? "Choose pages to connect" : "Choose a page")}
         </h1>
         <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
           {message}
@@ -189,58 +260,150 @@ export function OauthCallback({ provider }: Props) {
               gap: 8,
             }}
           >
-            {pages.map((page) => (
-              <button
-                key={page.id}
-                type="button"
-                disabled={savingPage}
-                onClick={() => handlePickPage(page)}
+            {pages.length > 1 && (
+              <div
                 style={{
                   display: "flex",
+                  justifyContent: "space-between",
                   alignItems: "center",
-                  gap: 12,
-                  padding: "10px 14px",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--line-soft)",
-                  background: "var(--bg)",
-                  cursor: savingPage ? "default" : "pointer",
-                  textAlign: "left",
-                  opacity: savingPage ? 0.6 : 1,
+                  fontSize: 12,
+                  color: "var(--muted)",
+                  marginBottom: 4,
                 }}
               >
-                {page.picture && !brokenPics[page.id] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={page.picture}
-                    alt=""
-                    width={32}
-                    height={32}
-                    style={{ borderRadius: 6, objectFit: "cover" }}
-                    onError={() =>
-                      setBrokenPics((prev) => ({ ...prev, [page.id]: true }))
-                    }
-                  />
-                ) : (
-                  <span
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 6,
-                      background: "var(--line-soft)",
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: 13,
-                      color: "var(--fg)",
-                    }}
-                  >
-                    {page.name?.[0]?.toUpperCase() ?? "?"}
-                  </span>
-                )}
-                <span style={{ fontSize: 14, color: "var(--fg)" }}>
-                  {page.name}
+                <span>
+                  {selectedPages.size} of {pages.length} selected
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedPages.size === pages.length) {
+                      setSelectedPages(new Set());
+                    } else {
+                      setSelectedPages(new Set(pages.map((p) => p.page || p.id)));
+                    }
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--accent)",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: 0,
+                  }}
+                >
+                  {selectedPages.size === pages.length ? "Clear all" : "Select all"}
+                </button>
+              </div>
+            )}
+            {pages.map((page) => {
+              const pageKey = page.page || page.id;
+              const isChecked = selectedPages.has(pageKey);
+              return (
+                <button
+                  key={page.id}
+                  type="button"
+                  disabled={savingPage}
+                  onClick={() => {
+                    if (pages.length === 1) {
+                      void handlePickPage(page);
+                      return;
+                    }
+                    setSelectedPages((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(pageKey)) next.delete(pageKey);
+                      else next.add(pageKey);
+                      return next;
+                    });
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 14px",
+                    borderRadius: "var(--radius-md)",
+                    border:
+                      pages.length > 1 && isChecked
+                        ? "1.5px solid var(--accent)"
+                        : "1px solid var(--line-soft)",
+                    background: "var(--bg)",
+                    cursor: savingPage ? "default" : "pointer",
+                    textAlign: "left",
+                    opacity: savingPage ? 0.6 : 1,
+                  }}
+                >
+                  {pages.length > 1 && (
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      readOnly
+                      aria-label={`Select ${page.name}`}
+                      style={{ width: 16, height: 16, pointerEvents: "none" }}
+                    />
+                  )}
+                  {page.picture && !brokenPics[page.id] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={page.picture}
+                      alt=""
+                      width={32}
+                      height={32}
+                      style={{ borderRadius: 6, objectFit: "cover" }}
+                      onError={() =>
+                        setBrokenPics((prev) => ({ ...prev, [page.id]: true }))
+                      }
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 6,
+                        background: "var(--line-soft)",
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: 13,
+                        color: "var(--fg)",
+                      }}
+                    >
+                      {page.name?.[0]?.toUpperCase() ?? "?"}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 14, color: "var(--fg)", flex: 1 }}>
+                    {page.name}
+                  </span>
+                </button>
+              );
+            })}
+            {pages.length > 1 && (
+              <button
+                type="button"
+                disabled={savingPage || selectedPages.size === 0}
+                onClick={handleConnectSelectedPages}
+                style={{
+                  marginTop: 8,
+                  padding: "10px 16px",
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--fg)",
+                  color: "var(--bg)",
+                  border: "none",
+                  cursor:
+                    savingPage || selectedPages.size === 0
+                      ? "not-allowed"
+                      : "pointer",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  opacity: savingPage || selectedPages.size === 0 ? 0.6 : 1,
+                }}
+              >
+                {savingPage
+                  ? "Connecting…"
+                  : `Connect ${selectedPages.size} selected page${
+                      selectedPages.size === 1 ? "" : "s"
+                    }`}
               </button>
-            ))}
+            )}
           </div>
         )}
 

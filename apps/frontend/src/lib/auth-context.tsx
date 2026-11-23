@@ -23,6 +23,8 @@ export interface OrgSummary {
   name: string;
   role: "SUPERADMIN" | "ADMIN" | "USER";
   logo?: string | null;
+  color?: string | null;
+  icon?: string | null;
 }
 
 export interface SelfUser {
@@ -47,9 +49,22 @@ export interface SelfUser {
   organizations?: OrgSummary[];
   /** Current org's uploaded logo (Settings → Organization). Null falls back to the PostSider brand mark. */
   orgLogo?: string | null;
+  orgName?: string;
+  projectType?: string | null;
+  brandHandle?: string | null;
+  brandWebsite?: string | null;
+  brandEmail?: string | null;
   /** Whether the org has agency mode (multi-client overview) enabled. Off by default. */
   agencyMode?: boolean;
   // Other fields exist on the backend but aren't used here yet.
+}
+
+export interface CreateOrgInput {
+  name: string;
+  projectType?: string;
+  brandHandle?: string;
+  brandWebsite?: string;
+  brandEmail?: string;
 }
 
 interface AuthState {
@@ -61,7 +76,7 @@ interface AuthState {
   /** Switch to a different organization. Resolves after the new org context is loaded. */
   switchOrg: (orgId: string) => Promise<void>;
   /** Create an additional organization owned by the current user and switch to it. */
-  createOrg: (name: string) => Promise<void>;
+  createOrg: (input: string | CreateOrgInput) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -94,6 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: o.name,
               role: o.users?.[0]?.role || "USER",
               logo: o.logo ?? null,
+              color: o.color ?? null,
+              icon: o.icon ?? null,
             }));
           setUser((prev) => (prev ? { ...prev, organizations: orgs } : prev));
         }
@@ -124,10 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = "/";
   }, []);
 
-  const createOrg = useCallback(async (name: string) => {
+  const createOrg = useCallback(async (input: string | CreateOrgInput) => {
+    const payload = typeof input === "string" ? { name: input } : input;
     const created = await api.post<{ id: string; name: string }>(
       "/user/organizations",
-      { name },
+      payload,
     );
     await switchOrg(created.id);
   }, [switchOrg]);

@@ -1,8 +1,10 @@
 "use client";
 
+import { useCallback, useMemo, useState } from "react";
 import styles from "./channels-panel.module.css";
 import type { Channel } from "@/lib/calendar-data";
 import { ChannelAvatar } from "./channel-avatar";
+import { groupChannelsByPlatform } from "./destination-filter-chips";
 import { useT } from "@/lib/i18n";
 
 interface ChannelsPanelProps {
@@ -20,6 +22,8 @@ interface ChannelsPanelProps {
   hideActions?: boolean;
   /** Open the channel detail popup (only used in multi mode). */
   onOpenChannel?: (id: string) => void;
+  /** Render compactly inside a toolbar popover without sidebar border/collapse. */
+  embedded?: boolean;
 }
 
 function ChevronCollapse({ collapsed }: { collapsed: boolean }) {
@@ -82,53 +86,72 @@ export function ChannelsPanel({
   mode = "multi",
   hideActions = false,
   onOpenChannel,
+  embedded = false,
 }: ChannelsPanelProps) {
   const t = useT();
   const isSingle = mode === "single";
+  const isCollapsed = collapsed && !embedded;
+  const Container = embedded ? "div" : "aside";
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const groupedChannels = useMemo(() => groupChannelsByPlatform(channels), [channels]);
+  const toggleGroup = useCallback((key: string, current: boolean) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !current }));
+  }, []);
   return (
-    <aside
-      className={styles.panel + (collapsed ? " " + styles.panelCollapsed : "")}
+    <Container
+      className={
+        (embedded ? styles.panelEmbedded : styles.panel) +
+        (isCollapsed ? " " + styles.panelCollapsed : "")
+      }
       aria-label={t("channels.add")}
     >
       <div className={styles.head}>
-        {!collapsed && (
+        {!isCollapsed && (
           <div className={styles.headText}>
             <span className={styles.headEyebrow}>{t("channels.eyebrow")}</span>
             <span className={styles.headTitle}>{t("channels.title")}</span>
           </div>
         )}
-        <button
-          type="button"
-          className={`${styles.collapseBtn} touch-target`}
-          onClick={onToggleCollapse}
-          aria-label={collapsed ? "Expand channels" : "Collapse channels"}
-        >
-          <ChevronCollapse collapsed={collapsed} />
-        </button>
+        {!embedded && (
+          <button
+            type="button"
+            className={`${styles.collapseBtn} touch-target`}
+            onClick={onToggleCollapse}
+            aria-label={isCollapsed ? "Expand channels" : "Collapse channels"}
+          >
+            <ChevronCollapse collapsed={isCollapsed} />
+          </button>
+        )}
       </div>
 
-      {!collapsed && (
+      {!isCollapsed && (
         <>
-          {!hideActions && (
+          {!hideActions && (onAddChannel || onCreatePost) && (
             <div className={styles.actions}>
-              <button
-                type="button"
-                className={styles.addBtn}
-                onClick={onAddChannel}
-              >
-                <PlusIcon /> {t("channels.add")}
-              </button>
-              <button
-                type="button"
-                className={styles.createBtn}
-                onClick={onCreatePost}
-              >
-                <PlusIcon /> {t("channels.createPost")}
-              </button>
+              {onAddChannel && (
+                <button
+                  type="button"
+                  className={styles.addBtn}
+                  onClick={onAddChannel}
+                >
+                  <PlusIcon /> {t("channels.add")}
+                </button>
+              )}
+              {onCreatePost && (
+                <button
+                  type="button"
+                  className={styles.createBtn}
+                  onClick={onCreatePost}
+                >
+                  <PlusIcon /> {t("channels.createPost")}
+                </button>
+              )}
             </div>
           )}
 
-          {!hideActions && <div className={styles.divider} />}
+          {!hideActions && (onAddChannel || onCreatePost) && (
+            <div className={styles.divider} />
+          )}
 
           <div
             className={styles.list}
@@ -138,49 +161,120 @@ export function ChannelsPanel({
             {channels.length === 0 && (
               <div className={styles.empty}>{t("channels.noChannels")}</div>
             )}
-            {channels.map((c) => {
-              const isOn = enabled.has(c.id);
-              const handleRowClick = () => {
-                if (isSingle) {
-                  onToggleChannel(c.id);
-                } else if (onOpenChannel) {
-                  onOpenChannel(c.id);
-                } else {
-                  onToggleChannel(c.id);
-                }
-              };
-              return (
-                <button
-                  type="button"
-                  key={c.id}
-                  role={isSingle ? "radio" : "option"}
-                  aria-checked={isSingle ? isOn : undefined}
-                  aria-selected={isSingle ? undefined : isOn}
-                  className={
-                    styles.row +
-                    (isSingle && isOn ? " " + styles.rowActive : "")
+            {groupedChannels.map((group) => {
+              const [primary, ...rest] = group.items;
+              const extraCount = rest.length;
+              const hasNestedActive = isSingle
+                ? rest.some((c) => enabled.has(c.id))
+                : false;
+              const isExpanded = expandedGroups[group.key] ?? hasNestedActive;
+
+              const renderRow = (c: Channel, isPrimary: boolean) => {
+                const isOn = enabled.has(c.id);
+                const handleRowClick = () => {
+                  if (isSingle) {
+                    onToggleChannel(c.id);
+                  } else if (onOpenChannel) {
+                    onOpenChannel(c.id);
+                  } else {
+                    onToggleChannel(c.id);
                   }
-                  onClick={handleRowClick}
-                  title={`${c.name} · ${c.platform}`}
+                };
+                return (
+                  <div
+                    key={c.id}
+                    style={{ display: "flex", alignItems: "center", gap: 4 }}
+                  >
+                    <button
+                      type="button"
+                      role={isSingle ? "radio" : "option"}
+                      aria-checked={isSingle ? isOn : undefined}
+                      aria-selected={isSingle ? undefined : isOn}
+                      className={
+                        styles.row +
+                        (isSingle && isOn ? " " + styles.rowActive : "")
+                      }
+                      style={{ flex: 1, minWidth: 0 }}
+                      onClick={handleRowClick}
+                      title={`${c.name} · ${c.platform}`}
+                    >
+                      <Avatar
+                        channel={c}
+                        withBadge
+                        inverted={isSingle && isOn}
+                        color={c.color}
+                      />
+                      <span className={styles.rowText}>
+                        <span className={styles.name}>{c.name}</span>
+                        <span className={styles.platform}>
+                          {c.platform}
+                          {c.identifier === "linkedin"
+                            ? " · Profile"
+                            : c.identifier === "linkedin-page" || c.identifier === "facebook"
+                            ? " · Page"
+                            : ""}
+                        </span>
+                      </span>
+                      {!isSingle && (
+                        <span
+                          className={styles.colorDot}
+                          style={{ background: c.color }}
+                          aria-hidden
+                        />
+                      )}
+                    </button>
+                    {isPrimary && extraCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.key, isExpanded)}
+                        aria-expanded={isExpanded}
+                        data-testid={`channels-panel-expand-${group.key}`}
+                        title={
+                          isExpanded
+                            ? `Collapse ${c.platform} accounts`
+                            : `Show ${extraCount} more ${c.platform} account${extraCount === 1 ? "" : "s"}`
+                        }
+                        style={{
+                          height: 24,
+                          padding: "0 7px",
+                          borderRadius: 4,
+                          border: "1px solid var(--line)",
+                          backgroundColor: isExpanded ? "var(--fg)" : "var(--bg)",
+                          color: isExpanded ? "var(--bg)" : "var(--fg)",
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isExpanded ? `▴ -${extraCount}` : `▾ +${extraCount}`}
+                      </button>
+                    )}
+                  </div>
+                );
+              };
+
+              return (
+                <div
+                  key={group.key}
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
                 >
-                  <Avatar
-                    channel={c}
-                    withBadge
-                    inverted={isSingle && isOn}
-                    color={c.color}
-                  />
-                  <span className={styles.rowText}>
-                    <span className={styles.name}>{c.name}</span>
-                    <span className={styles.platform}>{c.platform}</span>
-                  </span>
-                  {!isSingle && (
-                    <span
-                      className={styles.colorDot}
-                      style={{ background: c.color }}
-                      aria-hidden
-                    />
+                  {renderRow(primary, true)}
+                  {isExpanded && rest.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        marginLeft: 10,
+                        paddingLeft: 10,
+                        borderLeft: "2px solid var(--line)",
+                      }}
+                    >
+                      {rest.map((c) => renderRow(c, false))}
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -224,6 +318,6 @@ export function ChannelsPanel({
           })}
         </div>
       )}
-    </aside>
+    </Container>
   );
 }

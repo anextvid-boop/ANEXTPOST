@@ -33,7 +33,14 @@ function getBackendUrl(): string {
       "http://localhost:3000"
     );
   }
-  return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
+  const configured = process.env.NEXT_PUBLIC_BACKEND_URL;
+  if (
+    window.location.protocol === "https:" &&
+    (!configured || /^http:\/\/localhost(?::\d+)?$/i.test(configured))
+  ) {
+    return "/api";
+  }
+  return configured || "http://localhost:3000";
 }
 
 export function getAuthToken(): string | null {
@@ -216,6 +223,9 @@ export const api = {
   },
   put<T>(path: string, body?: unknown, opts?: ApiOptions) {
     return request<T>("PUT", buildUrl(path), { ...opts, body });
+  },
+  patch<T>(path: string, body?: unknown, opts?: ApiOptions) {
+    return request<T>("PATCH", buildUrl(path), { ...opts, body });
   },
   del<T>(path: string, body?: unknown, opts?: ApiOptions) {
     return request<T>("DELETE", buildUrl(path), { ...opts, body });

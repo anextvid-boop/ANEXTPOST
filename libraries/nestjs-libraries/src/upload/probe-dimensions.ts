@@ -1,13 +1,91 @@
 import sharp from 'sharp';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
+import { createReadStream } from 'fs';
 import { writeFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import ffprobeStatic from 'ffprobe-static';
 
 const execFileAsync = promisify(execFile);
+
+function resolveFfmpegBin(): string {
+  return process.env.FFMPEG_PATH || '/opt/homebrew/bin/ffmpeg';
+}
+
+export async function probeVideoPath(videoPath: string): Promise<{
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+}> {
+  try {
+    const { stdout } = await execFileAsync(ffprobeStatic.path, [
+      '-v',
+      'quiet',
+      '-print_format',
+      'json',
+      '-show_streams',
+      '-show_format',
+      videoPath,
+    ]);
+    const parsed = JSON.parse(stdout) || {};
+    const streams = parsed?.streams || [];
+    const videoStream = streams.find((s: any) => s.codec_type === 'video');
+    const rawDuration = parsed?.format?.duration ?? videoStream?.duration;
+    const durationSeconds = Number.isFinite(Number(rawDuration))
+      ? Math.round(Number(rawDuration))
+      : undefined;
+    return videoStream
+      ? {
+          width: videoStream.width,
+          height: videoStream.height,
+          ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+        }
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function captureVideoThumbnail(
+  videoPath: string,
+  outputJpgPath: string
+): Promise<boolean> {
+  const ffmpeg = resolveFfmpegBin();
+  for (const seekSec of ['1', '0']) {
+    try {
+      await execFileAsync(ffmpeg, [
+        '-y',
+        '-ss',
+        seekSec,
+        '-i',
+        videoPath,
+        '-frames:v',
+        '1',
+        '-vf',
+        'scale=480:-2',
+        '-q:v',
+        '4',
+        outputJpgPath,
+      ]);
+      return true;
+    } catch {
+      // Retry at 0s if 1s seek fails (e.g. sub-second video).
+    }
+  }
+  return false;
+}
+
+export function computeFileSha256(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256');
+    const stream = createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
 
 /**
  * Reads pixel dimensions (frame size) and, for video, the duration from an

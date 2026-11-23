@@ -41,12 +41,23 @@ export class OrganizationService {
   }
 
   /** New org for a user who's already logged in — see repository method for why. */
-  async createOrgForCurrentUser(userId: string, email: string, name: string) {
+  async createOrgForCurrentUser(
+    userId: string,
+    email: string,
+    name: string,
+    meta?: {
+      projectType?: string | null;
+      brandHandle?: string | null;
+      brandWebsite?: string | null;
+      brandEmail?: string | null;
+    }
+  ) {
     const allowTrial = true;
     const created = await this._organizationRepository.createOrgForExistingUser(
       userId,
       name,
-      allowTrial
+      allowTrial,
+      meta
     );
     return created;
   }
@@ -61,6 +72,8 @@ export class OrganizationService {
       name: org?.name ?? '',
       description: org?.description ?? '',
       logo: org?.logo ?? null,
+      color: org?.color ?? null,
+      icon: org?.icon ?? null,
       defaultTimezone: org?.defaultTimezone ?? null,
       referralSource: org?.referralSource ?? null,
       brandVoice: org?.brandVoice ?? null,
@@ -77,6 +90,8 @@ export class OrganizationService {
       name?: string;
       description?: string | null;
       logo?: string | null;
+      color?: string | null;
+      icon?: string | null;
       defaultTimezone?: string | null;
       referralSource?: string | null;
       brandVoice?: string | null;

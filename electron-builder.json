@@ -1,0 +1,44 @@
+{
+  "appId": "com.anextvid.anextpost",
+  "productName": "ANEXTPOST",
+  "extraMetadata": {
+    "main": "electron/main.js"
+  },
+  "directories": {
+    "output": "dist-desktop"
+  },
+  "files": [
+    "electron/**/*",
+    "package.json",
+    "!electron/dev.js"
+  ],
+  "protocols": [
+    {
+      "name": "ANEXTPOST",
+      "schemes": [
+        "anextpost"
+      ]
+    }
+  ],
+  "fileAssociations": [
+    {
+      "ext": ["png", "jpg", "jpeg", "webp", "mp4", "mov"],
+      "name": "ANEXTPOST Media Asset",
+      "role": "Viewer"
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.productivity",
+    "icon": "electron/icon.icns",
+    "target": [
+      {
+        "target": "dir",
+        "arch": ["arm64"]
+      },
+      {
+        "target": "dmg",
+        "arch": ["arm64"]
+      }
+    ]
+  }
+}

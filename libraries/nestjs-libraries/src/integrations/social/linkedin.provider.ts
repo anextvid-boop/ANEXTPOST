@@ -33,7 +33,9 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
 
   isBetweenSteps = false;
   scopes = [
-    'r_basicprofile',
+    'openid',
+    'profile',
+    'email',
     'w_member_social',
   ];
   override maxConcurrentJob = 2; // LinkedIn has professional posting limits
@@ -111,44 +113,59 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
       response.status
     );
     const { refresh_token: refreshToken, expires_in } = body;
-
-    const { vanityName } = await (
-      await fetch('https://api.linkedin.com/v2/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
-
-    const {
-      localizedFirstName,
-      localizedLastName,
-      id,
-      profilePicture,
-    } = await (
-      await fetch(
-        'https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      )
-    ).json();
-
-    const name = `${localizedFirstName} ${localizedLastName}`.trim();
-    const picture =
-      profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]
-        ?.identifier || '';
+    const profile = await this.fetchProfile(accessToken);
 
     return {
-      id,
+      id: profile.id,
       accessToken,
       refreshToken,
       expiresIn: expires_in,
+      name: profile.name,
+      picture: profile.picture,
+      username: profile.username,
+    };
+  }
+
+  protected async fetchProfile(accessToken: string): Promise<{
+    id: string;
+    name: string;
+    picture: string;
+    username: string;
+  }> {
+    const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (userinfoRes.ok) {
+      const info = await userinfoRes.json();
+      if (info?.sub) {
+        const name =
+          info.name ||
+          `${info.given_name || ''} ${info.family_name || ''}`.trim() ||
+          'LinkedIn Member';
+        return {
+          id: info.sub,
+          name,
+          picture: info.picture || '',
+          username: info.email || info.sub,
+        };
+      }
+    }
+
+    const me = await (
+      await fetch(
+        'https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,vanityName,profilePicture(displayImage~:playableStreams))',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      )
+    ).json();
+    const name = `${me.localizedFirstName || ''} ${me.localizedLastName || ''}`.trim();
+    const picture =
+      me.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]
+        ?.identifier || '';
+    return {
+      id: me.id,
       name,
       picture,
-      username: vanityName,
+      username: me.vanityName || me.id,
     };
   }
 
@@ -205,36 +222,16 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
     // We only verify the minimum required scope for posting.
     this.checkScopes(['w_member_social'], scope);
 
-    const {
-      localizedFirstName,
-      localizedLastName,
-      id,
-      vanityName,
-      profilePicture,
-    } = await (
-      await fetch(
-        'https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,vanityName,profilePicture(displayImage~:playableStreams))',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      )
-    ).json();
-
-    const name = `${localizedFirstName} ${localizedLastName}`.trim();
-    const picture =
-      profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]
-        ?.identifier || '';
+    const profile = await this.fetchProfile(accessToken);
 
     return {
-      id,
+      id: profile.id,
       accessToken,
       refreshToken,
       expiresIn,
-      name,
-      picture,
-      username: vanityName,
+      name: profile.name,
+      picture: profile.picture,
+      username: profile.username,
     };
   }
 

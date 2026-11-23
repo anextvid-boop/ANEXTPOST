@@ -7,7 +7,13 @@ import { LOCALES, LOCALE_NAMES, type Locale } from "@/lib/i18n/locales";
  * Compact language selector. Uses a native <select> so it works on every
  * device and needs no extra dropdown styling.
  */
-export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
+export function LanguageSwitcher({
+  compact = false,
+  selectClassName = "",
+}: {
+  compact?: boolean;
+  selectClassName?: string;
+}) {
   const { locale, setLocale } = useI18n();
 
   return (
@@ -16,7 +22,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
         display: "flex",
         alignItems: "center",
         gap: 8,
-        padding: "0 10px",
+        padding: compact ? 0 : "0 10px",
         fontSize: 12,
         color: "var(--muted)",
       }}
@@ -37,7 +43,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
         // Font size lives in globals.css (.lang-select), not inline: an inline
         // 12px beat the phone rule that keeps fields at 16px, and iOS zoomed
         // the whole page whenever this select was focused.
-        className="lang-select"
+        className={"lang-select" + (selectClassName ? " " + selectClassName : "")}
         onChange={(e) => setLocale(e.target.value as Locale)}
         style={{
           appearance: "none",

@@ -14,9 +14,59 @@ const DAYS_AHEAD = 14;
 const LEAD_MS = 30 * 60_000; // never suggest a slot less than 30 min out
 const COLLISION_MS = 45 * 60_000; // keep suggestions clear of already-queued posts
 const HISTORY_DAYS = 90;
-const MIN_HISTORY = 8; // need a real signal before personalizing
+const MIN_HISTORY = 3; // personalize early for newly connected established accounts
 const SPREAD_MS = 3 * 3_600_000; // suggestions at least 3h apart
 const DAY_MS = 86_400_000;
+const JITTER_MINUTES = [7, 13, 19, 27, 34, 42, 49, 53];
+
+function resolveDefaultTimezone(): string {
+  const configured = process.env.SMART_SLOTS_DEFAULT_TIMEZONE?.trim();
+  if (configured) return configured;
+  try {
+    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (localTz) return localTz;
+  } catch {
+    // ignore
+  }
+  return 'UTC';
+}
+
+function deterministicMinute(integrationId: string, dayOffset: number, hour: number): number {
+  let hash = dayOffset * 31 + hour * 17;
+  for (let i = 0; i < integrationId.length; i++) {
+    hash = (hash * 31 + integrationId.charCodeAt(i)) >>> 0;
+  }
+  return JITTER_MINUTES[hash % JITTER_MINUTES.length];
+}
+
+function parseActiveHoursWindow(): { start: number; end: number } | null {
+  const raw = process.env.SMART_SLOTS_ACTIVE_HOURS?.trim();
+  if (!raw) return null;
+  const match = /^(\d{1,2})\s*-\s*(\d{1,2})$/.exec(raw);
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    start > 23 ||
+    end < 0 ||
+    end > 23
+  ) {
+    return null;
+  }
+  return { start, end };
+}
+
+function isWithinHostActiveWindow(utcMs: number, window: { start: number; end: number } | null): boolean {
+  if (!window) return true;
+  const hostHour = new Date(utcMs).getHours();
+  if (window.start <= window.end) {
+    return hostHour >= window.start && hostHour <= window.end;
+  }
+  return hostHour >= window.start || hostHour <= window.end;
+}
 
 @Injectable()
 export class SmartSlotsService {
@@ -62,33 +112,37 @@ export class SmartSlotsService {
     if (integration.providerIdentifier !== platform) {
       throw new BadRequestException('Platform does not match integration');
     }
-    const tz = integration.timezone || 'UTC';
+    const tz = integration.timezone || resolveDefaultTimezone();
     const tzOffsetMinutes = dayjs().tz(tz).utcOffset();
     const offsetMs = tzOffsetMinutes * 60_000;
     const nowMs = Date.now();
     const localNow = new Date(nowMs + offsetMs);
+    const activeWindow = parseActiveHoursWindow();
 
-    // 1) Candidate grid in audience-local time, future-only (with a small lead).
-    const candidates: Date[] = [];
+    // 1) Candidate grid in audience-local time, future-only (with a small lead)
+    //    and deterministic minute jitter to avoid top-of-hour (:00) feed spikes.
+    const allCandidates: Date[] = [];
     for (let d = 0; d < DAYS_AHEAD; d++) {
       for (const h of CANDIDATE_HOURS) {
+        const minute = deterministicMinute(integrationId, d, h);
         const localMs = Date.UTC(
           localNow.getUTCFullYear(),
           localNow.getUTCMonth(),
           localNow.getUTCDate() + d,
           h,
-          0,
+          minute,
           0,
           0,
         );
         const utcMs = localMs - offsetMs;
-        if (utcMs > nowMs + LEAD_MS) candidates.push(new Date(utcMs));
+        if (utcMs > nowMs + LEAD_MS) allCandidates.push(new Date(utcMs));
       }
     }
+    const awakeCandidates = allCandidates.filter((c) => isWithinHostActiveWindow(c.getTime(), activeWindow));
+    const candidates = awakeCandidates.length > 0 ? awakeCandidates : allCandidates;
 
     // 2) Pull the channel's own posts: queued (for collision avoidance) and
-    // recently published (for the posting-rhythm histogram). Fail-soft to []
-    // so suggestions never break if the query errors.
+    // recently published with analytics (for engagement-weighted rhythm).
     const [scheduled, published] = await Promise.all([
       this._prisma.post
         .findMany({
@@ -107,10 +161,13 @@ export class SmartSlotsService {
             state: 'PUBLISHED',
             publishDate: { gte: new Date(nowMs - HISTORY_DAYS * DAY_MS) },
           },
-          select: { publishDate: true },
+          select: {
+            publishDate: true,
+            analytics: { select: { value: true } },
+          },
           take: 500,
         })
-        .catch(() => [] as { publishDate: Date }[]),
+        .catch(() => [] as { publishDate: Date; analytics?: { value: number }[] }[]),
     ]);
 
     const busy = scheduled.map((p) => p.publishDate.getTime());
@@ -118,7 +175,7 @@ export class SmartSlotsService {
       (c) => !busy.some((b) => Math.abs(c.getTime() - b) < COLLISION_MS),
     );
 
-    // Posting rhythm by local day and hour, only with enough signal.
+    // Engagement-weighted posting rhythm by local day and hour.
     let histogram: number[] | null = null;
     let postingPattern: number[] | null = null;
     if (published.length >= MIN_HISTORY) {
@@ -127,8 +184,13 @@ export class SmartSlotsService {
       for (const p of published) {
         const local = new Date(p.publishDate.getTime() + offsetMs);
         const hour = local.getUTCHours();
-        h[hour]++;
-        pattern[local.getUTCDay() * 24 + hour]++;
+        const engagementSum = (p.analytics ?? []).reduce(
+          (sum, row) => sum + (Number.isFinite(row.value) && row.value > 0 ? row.value : 0),
+          0,
+        );
+        const weight = 1 + Math.log1p(engagementSum);
+        h[hour] += weight;
+        pattern[local.getUTCDay() * 24 + hour] += weight;
       }
       histogram = h;
       postingPattern = pattern;

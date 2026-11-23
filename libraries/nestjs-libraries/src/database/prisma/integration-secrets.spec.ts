@@ -34,6 +34,19 @@ describe('integration secrets - field level', () => {
       'act.PlaintextLegacyToken',
     );
   });
+
+  it('round-trips legacy CBC hex when ENCRYPTION_KEY is unset', () => {
+    const prevKey = process.env.ENCRYPTION_KEY;
+    delete process.env.ENCRYPTION_KEY;
+    try {
+      const encrypted = encryptField('ya29.RealGoogleAccessToken') as string;
+      expect(encrypted).toMatch(/^[0-9a-f]+$/i);
+      expect(encryptField(encrypted)).toBe(encrypted);
+      expect(decryptField(encrypted)).toBe('ya29.RealGoogleAccessToken');
+    } finally {
+      process.env.ENCRYPTION_KEY = prevKey;
+    }
+  });
 });
 
 describe('integration secrets - write payloads', () => {

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 
 export const metadata = {
-  title: "Sign in · PostSider",
+  title: "Sign in · ANEXTPOST",
 };
 
 // LoginForm uses useSearchParams() to detect ?org=<jwt> invite tokens, which

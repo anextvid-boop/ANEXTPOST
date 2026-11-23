@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
+import { createReadStream, statSync } from 'fs';
 import 'multer';
 import { randomStorageName } from '@postsider/nestjs-libraries/upload/storage-key';
 import { IUploadProvider, UploadedFile } from './upload.interface';
@@ -142,6 +143,37 @@ class CloudflareStorage implements IUploadProvider {
       console.error('Error uploading file to Cloudflare R2:', err);
       throw err;
     }
+  }
+
+  async uploadFromPath(
+    sourcePath: string,
+    mime: string,
+    ext: string
+  ): Promise<UploadedFile> {
+    if (!ALLOWED_MIME.has(mime)) {
+      throw new Error('Unsupported file type.');
+    }
+    const kind = classifyMime(mime);
+    const key = this.buildKey(kind, ext);
+    const size = statSync(sourcePath).size;
+    await this._client.send(
+      new PutObjectCommand({
+        Bucket: this._bucketName,
+        ACL: 'public-read',
+        Key: key,
+        Body: createReadStream(sourcePath),
+        ContentLength: size,
+        ContentType: mime,
+      })
+    );
+    const filename = key.split('/').pop()!;
+    return {
+      filename,
+      path: `${this._uploadUrl}/${key}`,
+      mimetype: mime,
+      originalname: filename,
+      kind,
+    };
   }
 
   /**

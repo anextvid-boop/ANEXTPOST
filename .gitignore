@@ -89,3 +89,7 @@ scripts/temporal-refresh-v3-cutover.cjs
 
 # Node compile cache
 node-compile-cache/
+
+# Electron desktop build artifacts & local backend uploads
+dist-desktop/
+apps/backend/uploads/

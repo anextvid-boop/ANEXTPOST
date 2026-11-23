@@ -2,27 +2,46 @@
   position: fixed;
   inset: 0;
   background: var(--scrim);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 60;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
   animation: fadeIn 160ms var(--ease);
 }
 
 .modal {
-  width: min(1080px, 100%);
-  max-height: calc(100vh - 48px);
+  width: min(840px, 94vw);
+  height: 100%;
+  max-height: 100vh;
   background: var(--bg);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--line-soft);
+  border-radius: 0;
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 30px 80px rgb(var(--shadow) / calc(0.18 * var(--shadow-boost)));
-  animation: scaleIn 180ms var(--ease);
+  box-shadow: -16px 0 48px rgb(var(--shadow) / calc(0.18 * var(--shadow-boost)));
+  animation: slideInSheet 180ms var(--ease);
   overflow: hidden;
+}
+
+@keyframes slideInSheet {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .modal {
+    width: 100%;
+    border-left: none;
+  }
 }
 
 .head {
@@ -560,35 +579,51 @@
 
 .btnPrimary,
 .btnSecondary {
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--radius-pill);
+  height: var(--ctrl-height);
+  padding: 0 var(--ctrl-pad-x);
+  border-radius: var(--ctrl-radius);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   transition: opacity 140ms var(--ease), background 140ms var(--ease),
-    color 140ms var(--ease), transform 120ms var(--ease);
+    border-color 140ms var(--ease), color 140ms var(--ease),
+    transform 120ms var(--ease);
 }
 
 .btnPrimary {
-  border: 1px solid var(--fg);
-  background: var(--fg);
-  color: var(--bg);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--ctrl-bevel-primary);
 }
 
-.btnPrimary:hover { opacity: 0.86; background: var(--fg); color: var(--bg); }
-.btnPrimary:active { transform: scale(0.97); }
-.btnPrimary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btnPrimary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btnPrimary:active:not(:disabled) { transform: scale(0.98); }
+.btnPrimary:focus-visible { outline: var(--ctrl-focus-ring); outline-offset: 2px; }
+.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btnSecondary {
-  border: 1px solid var(--line);
-  background: var(--bg);
+  border: var(--ctrl-border);
+  background: var(--ctrl-surface);
   color: var(--fg);
+  box-shadow: var(--ctrl-bevel);
 }
 
-.btnSecondary:hover { background: var(--fg); color: var(--bg); }
-.btnSecondary:active { transform: scale(0.97); }
+.btnSecondary:hover:not(:disabled) {
+  background: var(--hover-strong);
+  border-color: var(--line);
+}
+.btnSecondary:active:not(:disabled) { transform: scale(0.98); }
+.btnSecondary:focus-visible { outline: var(--ctrl-focus-ring); outline-offset: 2px; }
+.btnSecondary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 @keyframes fadeIn {
   from { opacity: 0; }

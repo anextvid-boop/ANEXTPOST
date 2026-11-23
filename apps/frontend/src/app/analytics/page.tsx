@@ -1,7 +1,7 @@
 import { Analytics } from "@/components/analytics";
 
 export const metadata = {
-  title: "Analytics · PostSider",
+  title: "Analytics · ANEXTPOST",
 };
 
 export default function AnalyticsPage() {

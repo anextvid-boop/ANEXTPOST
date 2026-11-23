@@ -7,16 +7,29 @@ import {
 const defaultRedirect = () =>
   `${process.env.FRONTEND_URL}/auth/oauth/google/callback`;
 
+const googleLoginClientId = () =>
+  process.env.GOOGLE_LOGIN_CLIENT_ID?.trim() ||
+  process.env.YOUTUBE_CLIENT_ID?.trim() ||
+  '';
+
+const googleLoginClientSecret = () =>
+  process.env.GOOGLE_LOGIN_CLIENT_SECRET?.trim() ||
+  process.env.YOUTUBE_CLIENT_SECRET?.trim() ||
+  '';
+
 const makeClient = (redirectUri: string) =>
   new google.auth.OAuth2({
-    clientId: process.env.YOUTUBE_CLIENT_ID,
-    clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
+    clientId: googleLoginClientId(),
+    clientSecret: googleLoginClientSecret(),
     redirectUri,
   });
 
 @AuthProvider({ provider: 'GOOGLE' })
 export class GoogleProvider extends AuthProviderAbstract {
   generateLink(query?: { redirect_uri?: string }) {
+    if (!googleLoginClientId() || !googleLoginClientSecret()) {
+      return '';
+    }
     const redirectUri = query?.redirect_uri || defaultRedirect();
     return makeClient(redirectUri).generateAuthUrl({
       access_type: 'online',

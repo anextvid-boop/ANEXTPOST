@@ -6,10 +6,12 @@ import {
   IsIn,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
 } from 'class-validator';
-import { IsNotLocalWebhookHost } from '@postsider/nestjs-libraries/dtos/webhooks/webhook.url.validator';
+import {
+  IsNotLocalWebhookHost,
+  IsWebhookUrlProtocol,
+} from '@postsider/nestjs-libraries/dtos/webhooks/webhook.url.validator';
 import {
   PUBLIC_WEBHOOK_EVENTS,
   PublicWebhookEvent,
@@ -22,7 +24,7 @@ export class CreatePublicWebhookSubscriptionDto {
   name: string;
 
   @ApiProperty({ example: 'https://hooks.example.com/postsider' })
-  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @IsWebhookUrlProtocol()
   @IsNotLocalWebhookHost()
   @MaxLength(2048)
   url: string;

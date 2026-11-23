@@ -10,6 +10,10 @@ export function AnalyticsConsentBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    if ("anextpostDesktop" in window) {
+      setVisible(false);
+      return;
+    }
     const host = window.location.hostname;
     const eligible = isPostsiderHost() || host === "localhost";
     setVisible(eligible && !consentDecided());

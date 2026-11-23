@@ -1,0 +1,11 @@
+{
+  "name": "anextpost-backend",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
+

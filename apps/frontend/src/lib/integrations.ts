@@ -282,11 +282,36 @@ export async function pollTelegramUpdates(
  */
 export async function saveProviderPage(
   integrationId: string,
-  payload: { page: string; state?: string },
-): Promise<{ success: boolean }> {
-  return api.post<{ success: boolean }>(
+  payload: { page?: string; pages?: string[]; state?: string },
+): Promise<{ success: boolean; count?: number }> {
+  return api.post<{ success: boolean; count?: number }>(
     `/integrations/provider/${integrationId}/connect`,
     payload,
+  );
+}
+
+export interface AvailablePagesResponse {
+  pages: ConnectPage[];
+  connectedInternalIds: string[];
+}
+
+export async function getAvailablePages(
+  integrationId: string,
+): Promise<AvailablePagesResponse> {
+  return api.get<AvailablePagesResponse>(
+    `/integrations/${encodeURIComponent(integrationId)}/available-pages`,
+    undefined,
+    { silent: true },
+  );
+}
+
+export async function attachAdditionalPages(
+  integrationId: string,
+  pages: string[],
+): Promise<{ success: boolean; count?: number }> {
+  return api.post<{ success: boolean; count?: number }>(
+    `/integrations/${encodeURIComponent(integrationId)}/attach-pages`,
+    { pages },
   );
 }
 
@@ -347,6 +372,32 @@ export async function getTiktokCreatorInfo(
     `/integrations/function`,
     { id: integrationId, name: "creatorInfo", data: {} },
     { silent: true },
+  );
+}
+
+export interface ProviderCredentialsStatus {
+  configured: boolean;
+  clientId?: string;
+  hasClientSecret?: boolean;
+}
+
+export async function getProviderCredentials(
+  provider: string,
+): Promise<ProviderCredentialsStatus> {
+  return api.get<ProviderCredentialsStatus>(
+    `/settings/provider-credentials/${encodeURIComponent(provider)}`,
+    { silent: true },
+  );
+}
+
+export async function saveProviderCredentials(
+  provider: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<{ success: boolean }> {
+  return api.post<{ success: boolean }>(
+    `/settings/provider-credentials/${encodeURIComponent(provider)}`,
+    { clientId, clientSecret },
   );
 }
 

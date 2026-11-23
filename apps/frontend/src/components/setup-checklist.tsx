@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./setup-checklist.module.css";
 import { useT, type MessageKey } from "@/lib/i18n";
@@ -43,6 +43,8 @@ interface Props {
    * was only re-fetched when the channel list changed.
    */
   refreshSignal?: number;
+  /** Render as a compact status-strip pill whose steps open in a popover. */
+  inlineStrip?: boolean;
 }
 
 /**
@@ -65,11 +67,32 @@ export function SetupChecklist({
   onConnect,
   onCompose,
   refreshSignal,
+  inlineStrip = false,
 }: Props) {
   const t = useT();
   const { user } = useAuth();
   const [postCount, setPostCount] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!inlineStrip || !expanded) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setExpanded(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [inlineStrip, expanded]);
 
   // Read the dismissal after mount — localStorage is not available during SSR
   // and reading it in useState would desync the first client render.
@@ -159,10 +182,177 @@ export function SetupChecklist({
 
   const dismiss = () => {
     setDismissed(true);
+    setExpanded(false);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(dismissKey(user?.id), "1");
     }
   };
+
+  if (inlineStrip) {
+    return (
+      <div ref={wrapRef} className={styles.stripWrap}>
+        <button
+          type="button"
+          className={
+            styles.stripPill + (expanded ? " " + styles.stripPillOpen : "")
+          }
+          aria-expanded={expanded}
+          aria-haspopup="dialog"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <span className={styles.compactTitle}>{t("setupChecklist.title")}</span>
+          <span className={styles.compactCount}>
+            {t("setupChecklist.subtitle", {
+              done: doneCount,
+              total: items.length,
+            })}
+          </span>
+          <span
+            className={styles.compactProgress}
+            role="progressbar"
+            aria-valuenow={doneCount}
+            aria-valuemin={0}
+            aria-valuemax={items.length}
+          >
+            <span
+              className={styles.progressFill}
+              style={{
+                display: "block",
+                height: "100%",
+                width: `${(doneCount / items.length) * 100}%`,
+              }}
+            />
+          </span>
+        </button>
+
+        {expanded && (
+          <section
+            className={styles.popoverCard}
+            role="dialog"
+            aria-label={t("setupChecklist.title")}
+          >
+            <div className={styles.header}>
+              <div>
+                <h2 className={styles.title}>{t("setupChecklist.title")}</h2>
+                <p className={styles.subtitle}>
+                  {t("setupChecklist.subtitle", {
+                    done: doneCount,
+                    total: items.length,
+                  })}
+                </p>
+              </div>
+              <div className={styles.compactActions}>
+                <button
+                  type="button"
+                  className={styles.toggleBtn}
+                  onClick={() => setExpanded(false)}
+                >
+                  {t("common.close")}
+                </button>
+                <button type="button" className={styles.dismiss} onClick={dismiss}>
+                  {t("setupChecklist.dismiss")}
+                </button>
+              </div>
+            </div>
+
+            <div
+              className={styles.progress}
+              role="progressbar"
+              aria-valuenow={doneCount}
+              aria-valuemin={0}
+              aria-valuemax={items.length}
+            >
+              <div
+                className={styles.progressFill}
+                style={{ width: `${(doneCount / items.length) * 100}%` }}
+              />
+            </div>
+
+            <ol className={styles.list}>
+              {items.map((it) => (
+                <li
+                  key={it.id}
+                  className={`${styles.item} ${it.done ? styles.itemDone : ""} ${
+                    it.locked ? styles.itemLocked : ""
+                  }`}
+                >
+                  <span className={styles.check} aria-hidden>
+                    {it.done ? <CheckIcon /> : <span className={styles.dot} />}
+                  </span>
+                  <span className={styles.itemText}>
+                    <span className={styles.itemTitle}>
+                      {it.title}
+                      {it.tip && <InfoTip textKey={it.tip} />}
+                    </span>
+                    <span className={styles.itemDesc}>{it.desc}</span>
+                  </span>
+                  {!it.done &&
+                    !it.locked &&
+                    (it.href ? (
+                      <Link href={it.href} className={styles.itemCta}>
+                        {it.cta}
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.itemCta}
+                        onClick={() => {
+                          setExpanded(false);
+                          it.onClick?.();
+                        }}
+                      >
+                        {it.cta}
+                      </button>
+                    ))}
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+      </div>
+    );
+  }
+
+  if (!expanded) {
+    return (
+      <section className={styles.compactBar} aria-label={t("setupChecklist.title")}>
+        <div className={styles.compactLeft}>
+          <span className={styles.compactTitle}>{t("setupChecklist.title")}</span>
+          <span className={styles.compactCount}>
+            {t("setupChecklist.subtitle", {
+              done: doneCount,
+              total: items.length,
+            })}
+          </span>
+          <div
+            className={styles.compactProgress}
+            role="progressbar"
+            aria-valuenow={doneCount}
+            aria-valuemin={0}
+            aria-valuemax={items.length}
+          >
+            <div
+              className={styles.progressFill}
+              style={{ width: `${(doneCount / items.length) * 100}%` }}
+            />
+          </div>
+        </div>
+        <div className={styles.compactActions}>
+          <button
+            type="button"
+            className={styles.toggleBtn}
+            aria-expanded={false}
+            onClick={() => setExpanded(true)}
+          >
+            Show steps
+          </button>
+          <button type="button" className={styles.dismiss} onClick={dismiss}>
+            {t("setupChecklist.dismiss")}
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className={styles.card} aria-label={t("setupChecklist.title")}>
@@ -176,9 +366,19 @@ export function SetupChecklist({
             })}
           </p>
         </div>
-        <button type="button" className={styles.dismiss} onClick={dismiss}>
-          {t("setupChecklist.dismiss")}
-        </button>
+        <div className={styles.compactActions}>
+          <button
+            type="button"
+            className={styles.toggleBtn}
+            aria-expanded={true}
+            onClick={() => setExpanded(false)}
+          >
+            Hide steps
+          </button>
+          <button type="button" className={styles.dismiss} onClick={dismiss}>
+            {t("setupChecklist.dismiss")}
+          </button>
+        </div>
       </div>
 
       <div
