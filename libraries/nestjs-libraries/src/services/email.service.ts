@@ -85,8 +85,8 @@ export class EmailService {
           <!-- Logo -->
           <tr>
             <td align="center" style="padding: 36px 40px 0 40px;">
-              <img src="${process.env.FRONTEND_URL || 'https://app.postsider.com'}/brand/postsider-logo.png" alt="PostSider" width="48" height="48" style="width: 48px; height: 48px; border-radius: 12px; display: block;">
-              <p style="margin: 10px 0 0 0; font-size: 24px; font-weight: 700; color: #1d1d1f; letter-spacing: 0.5px; font-family: 'Changa One', Impact, 'Arial Black', sans-serif;">PostSider</p>
+              <img src="${process.env.FRONTEND_URL || 'https://anextpost.com'}/brand/anextpost-logo.png" alt="ANEXTPOST" width="48" height="48" style="width: 48px; height: 48px; border-radius: 12px; display: block;">
+              <p style="margin: 10px 0 0 0; font-size: 24px; font-weight: 700; color: #1d1d1f; letter-spacing: 0.5px; font-family: 'Changa One', Impact, 'Arial Black', sans-serif;">ANEXTPOST</p>
             </td>
           </tr>
           <!-- Content -->
@@ -105,7 +105,7 @@ export class EmailService {
                 <tr>
                   <td style="border-top: 1px solid #e8e8ed; padding-top: 20px;">
                     <p style="margin: 0 0 4px 0; font-size: 13px; color: #86868b; line-height: 1.4;">
-                      Sent by <span style="color: #1d1d1f; font-weight: 500;">PostSider</span>
+                      Sent by <span style="color: #1d1d1f; font-weight: 500;">ANEXTPOST</span>
                     </p>
                     <p style="margin: 0; font-size: 12px; color: #86868b; line-height: 1.4;">
                       <a href="${process.env.FRONTEND_URL}/settings/general" style="color: #86868b; text-decoration: underline;">Manage notifications</a>
@@ -121,7 +121,7 @@ export class EmailService {
           <tr>
             <td style="padding: 20px 40px; text-align: center;">
               <p style="margin: 0; font-size: 11px; color: #86868b;">
-                © ${new Date().getFullYear()} PostSider · <a href="https://postsider.com" style="color: #86868b; text-decoration: none;">postsider.com</a>
+                © ${new Date().getFullYear()} ANEXTPOST · <a href="https://anextpost.com" style="color: #86868b; text-decoration: none;">anextpost.com</a>
               </p>
             </td>
           </tr>

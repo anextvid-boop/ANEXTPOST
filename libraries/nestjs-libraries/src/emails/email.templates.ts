@@ -1,19 +1,19 @@
 /**
- * PostSider Email Templates
+ * ANEXTPOST Email Templates
  * 
  * Apple-style clean design. All emails use the same base wrapper.
- * Logo loads from FRONTEND_URL/brand/postsider-logo.png on production.
+ * Logo loads from FRONTEND_URL/brand/anextpost-logo.png on production.
  */
 
-const FRONTEND_URL = () => process.env.FRONTEND_URL || 'https://app.postsider.com';
-const LOGO_URL = () => `${FRONTEND_URL()}/brand/postsider-logo.png`;
+const FRONTEND_URL = () => process.env.FRONTEND_URL || 'https://anextpost.com';
+const LOGO_URL = () => `${FRONTEND_URL()}/brand/anextpost-logo.png`;
 
 function baseWrapper(content: string): string {
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background-color:#ffffff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);overflow:hidden;">
   <tr>
     <td align="center" style="padding:36px 40px 0 40px;">
-      <img src="${LOGO_URL()}" alt="PostSider" width="48" height="48" style="width:48px;height:48px;border-radius:12px;display:block;">
-      <p style="margin:10px 0 0 0;font-size:24px;font-weight:700;color:#1d1d1f;letter-spacing:0.5px;font-family:'Changa One',Impact,'Arial Black',sans-serif;">PostSider</p>
+      <img src="${LOGO_URL()}" alt="ANEXTPOST" width="48" height="48" style="width:48px;height:48px;border-radius:12px;display:block;">
+      <p style="margin:10px 0 0 0;font-size:24px;font-weight:700;color:#1d1d1f;letter-spacing:0.5px;font-family:'Changa One',Impact,'Arial Black',sans-serif;">ANEXTPOST</p>
     </td>
   </tr>
   <tr>
@@ -26,7 +26,7 @@ function baseWrapper(content: string): string {
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr>
           <td style="border-top:1px solid #e8e8ed;padding-top:20px;">
-            <p style="margin:0 0 4px 0;font-size:13px;color:#86868b;line-height:1.4;">Sent by <span style="color:#1d1d1f;font-weight:500;">PostSider</span></p>
+            <p style="margin:0 0 4px 0;font-size:13px;color:#86868b;line-height:1.4;">Sent by <span style="color:#1d1d1f;font-weight:500;">ANEXTPOST</span></p>
             <p style="margin:0;font-size:12px;color:#86868b;line-height:1.4;"><a href="${FRONTEND_URL()}/settings/general" style="color:#86868b;text-decoration:underline;">Manage notifications</a></p>
           </td>
         </tr>
@@ -37,7 +37,7 @@ function baseWrapper(content: string): string {
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;">
   <tr>
     <td style="padding:20px 40px;text-align:center;">
-      <p style="margin:0;font-size:11px;color:#86868b;">© ${new Date().getFullYear()} PostSider · <a href="https://postsider.com" style="color:#86868b;text-decoration:none;">postsider.com</a></p>
+      <p style="margin:0;font-size:11px;color:#86868b;">© ${new Date().getFullYear()} ANEXTPOST · <a href="https://anextpost.com" style="color:#86868b;text-decoration:none;">anextpost.com</a></p>
     </td>
   </tr>
 </table>`;
@@ -53,7 +53,7 @@ export function activateAccountEmail(activationUrl: string): string {
   return baseWrapper(`
     <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;color:#1d1d1f;letter-spacing:-0.3px;line-height:1.3;">Activate your account</h1>
     <div style="font-size:15px;line-height:1.6;color:#424245;">
-      <p style="margin:0 0 8px 0;">Welcome to PostSider! Click the button below to activate your account and start scheduling posts.</p>
+      <p style="margin:0 0 8px 0;">Welcome to ANEXTPOST! Click the button below to activate your account and start scheduling posts.</p>
       ${button('Activate account', activationUrl)}
       <p style="margin:16px 0 0 0;font-size:13px;color:#86868b;">If you didn't create this account, you can safely ignore this email.</p>
     </div>
@@ -75,20 +75,20 @@ export function teamInviteEmail(email: string, password: string): string {
   return baseWrapper(`
     <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;color:#1d1d1f;letter-spacing:-0.3px;line-height:1.3;">You've been invited</h1>
     <div style="font-size:15px;line-height:1.6;color:#424245;">
-      <p style="margin:0 0 16px 0;">Someone invited you to join their team on PostSider. Here are your credentials:</p>
+      <p style="margin:0 0 16px 0;">Someone invited you to join their team on ANEXTPOST. Here are your credentials:</p>
       <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 16px 0;">
         <tr><td style="padding:4px 0;font-size:14px;color:#86868b;width:100px;">Email</td><td style="padding:4px 0;font-size:14px;font-weight:600;color:#1d1d1f;">${email}</td></tr>
         <tr><td style="padding:4px 0;font-size:14px;color:#86868b;width:100px;">Password</td><td style="padding:4px 0;font-size:14px;font-weight:600;color:#1d1d1f;font-family:monospace;">${password}</td></tr>
       </table>
       <p style="margin:0 0 4px 0;font-size:13px;color:#86868b;">You'll be asked to set your own password after signing in.</p>
-      ${button('Sign in to PostSider', FRONTEND_URL())}
+      ${button('Sign in to ANEXTPOST', FRONTEND_URL())}
     </div>
   `);
 }
 
 export function welcomeEmail(name?: string): string {
   return baseWrapper(`
-    <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;color:#1d1d1f;letter-spacing:-0.3px;line-height:1.3;">Welcome to PostSider${name ? `, ${name}` : ''}!</h1>
+    <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;color:#1d1d1f;letter-spacing:-0.3px;line-height:1.3;">Welcome to ANEXTPOST${name ? `, ${name}` : ''}!</h1>
     <div style="font-size:15px;line-height:1.6;color:#424245;">
       <p style="margin:0 0 12px 0;">Your account is active. Here's what you can do next:</p>
       <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 16px 0;">
@@ -131,9 +131,9 @@ export function accountDeletedEmail(): string {
   return baseWrapper(`
     <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;color:#1d1d1f;letter-spacing:-0.3px;line-height:1.3;">Account deleted</h1>
     <div style="font-size:15px;line-height:1.6;color:#424245;">
-      <p style="margin:0 0 12px 0;">Your PostSider account has been permanently deleted. All your data, channels, and scheduled posts have been removed.</p>
-      <p style="margin:0 0 12px 0;">If this was a mistake or you change your mind, you can always create a new account at <a href="https://postsider.com" style="color:#1d1d1f;font-weight:500;">postsider.com</a>.</p>
-      <p style="margin:0;font-size:13px;color:#86868b;">Thank you for using PostSider.</p>
+      <p style="margin:0 0 12px 0;">Your ANEXTPOST account has been permanently deleted. All your data, channels, and scheduled posts have been removed.</p>
+      <p style="margin:0 0 12px 0;">If this was a mistake or you change your mind, you can always create a new account at <a href="https://anextpost.com" style="color:#1d1d1f;font-weight:500;">anextpost.com</a>.</p>
+      <p style="margin:0;font-size:13px;color:#86868b;">Thank you for using ANEXTPOST.</p>
     </div>
   `);
 }
