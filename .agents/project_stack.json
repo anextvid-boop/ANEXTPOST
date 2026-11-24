@@ -1,0 +1,24 @@
+{
+  "project": "ANEXTPOST",
+  "domain": "https://anextpost.com",
+  "repo": "~/dev/ANEXTPOST",
+  "desktopApp": "/Applications/ANEXTPOST.app",
+  "skills": {
+    "contentAndDistribution": [
+      "youtube-growth-and-packaging-master",
+      "youtube-publishing-and-monetization-ops",
+      "tiktok-shop-and-social-growth-suite",
+      "viral-explainer-engine"
+    ],
+    "hostingSecurityAndReliability": [
+      "web-seo-and-hosting-suite",
+      "backend-infra-testing-and-security-suite",
+      "mobile-remote-access-suite"
+    ],
+    "desktopUiAndAi": [
+      "electron-desktop-engineering-suite",
+      "web-design-and-ui-craft-suite",
+      "ai-engineering-and-local-llm-suite"
+    ]
+  }
+}
